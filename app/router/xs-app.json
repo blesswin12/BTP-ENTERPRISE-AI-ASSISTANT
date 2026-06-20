@@ -1,0 +1,18 @@
+{
+  "routes": [
+    {
+      "source": "^/mcp(.*)$",
+      "target": "/mcp$1",
+      "destination": "mcp-api",
+      "csrfProtection": false,
+      "authenticationType": "xsuaa"
+    },
+    {
+      "source": "^/(.*)$",
+      "target": "$1",
+      "destination": "srv-api",
+      "csrfProtection": true
+    }
+  ],
+  "welcomeFile": "/enterpriseaipurchaseorders"
+}

@@ -1,0 +1,7 @@
+ID;purchaseOrder_ID;itemNumber;material;description;quantity;unit;netPrice;netAmount;plant;deliveryDate
+aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1;11111111-1111-1111-1111-111111111111;10;MAT-1000;Industrial sensor assembly;25;EA;410.00;10250.00;Dallas;2026-06-24
+aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2;11111111-1111-1111-1111-111111111111;20;MAT-2200;Control cabinet kit;10;EA;800.00;8000.00;Dallas;2026-06-24
+bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1;22222222-2222-2222-2222-222222222222;10;MAT-3100;Replacement valve set;15;EA;325.50;4882.50;Phoenix;2026-06-21
+bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2;22222222-2222-2222-2222-222222222222;20;MAT-4200;Hydraulic hose bundle;30;EA;153.10;4593.00;Phoenix;2026-06-27
+cccccccc-cccc-cccc-cccc-ccccccccccc1;33333333-3333-3333-3333-333333333333;10;PKG-100;Reusable shipping crate;60;EA;48.50;2910.00;Atlanta;2026-07-02
+cccccccc-cccc-cccc-cccc-ccccccccccc2;33333333-3333-3333-3333-333333333333;20;PKG-200;Foam insert set;75;EA;17.34;1300.75;Atlanta;2026-07-02

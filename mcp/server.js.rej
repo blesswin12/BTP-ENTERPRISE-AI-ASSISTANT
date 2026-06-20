@@ -1,0 +1,54 @@
+--- mcp/server.js
++++ mcp/server.js
+@@ -1,15 +1,36 @@
+-const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
+-
+-const server = new Server(
+-  {
+-    name: "Procurement-MCP",
+-    version: "1.0.0",
+-  },
+-  {
+-    capabilities: {
+-      tools: {}
+-    }
+-  }
+-);
+-
+-console.log("MCP Server Started");
++'use strict'
++
++const path = require('node:path')
++process.chdir(path.resolve(__dirname, '..'))
++
++const cds = require('@sap/cds')
++const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js')
++const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js')
++const { createProcurementRepository } = require('./procurement-repository')
++const { registerProcurementTools } = require('./tools')
++
++async function createServer() {
++  cds.model = cds.model || await cds.load('*')
++  await cds.connect.to('db')
++
++  const server = new McpServer({
++    name: 'sap-procurement-mcp',
++    version: '1.0.0'
++  })
++  registerProcurementTools(server, createProcurementRepository(cds))
++  return server
++}
++
++async function main() {
++  const server = await createServer()
++  await server.connect(new StdioServerTransport())
++  console.error('SAP Procurement MCP server is running on stdio')
++}
++
++if (require.main === module) {
++  main().catch(error => {
++    console.error('Failed to start SAP Procurement MCP server:', error)
++    process.exitCode = 1
++  })
++}
++

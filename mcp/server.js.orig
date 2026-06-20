@@ -1,0 +1,15 @@
+const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
+
+const server = new Server(
+  {
+    name: "Procurement-MCP",
+    version: "1.0.0",
+  },
+  {
+    capabilities: {
+      tools: {}
+    }
+  }
+);
+
+console.log("MCP Server Started");

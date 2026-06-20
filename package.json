@@ -1,0 +1,42 @@
+{
+  "name": "enterprise-ai-assistant",
+  "version": "1.0.0",
+  "dependencies": {
+    "@cap-js/hana": "^2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@sap/cds": "^9",
+    "@sap/xssec": "^4",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@cap-js/sqlite": "^2.4",
+    "@sap/cds-dk": "^9",
+    "cds-plugin-ui5": "^0.17.0",
+    "mbt": "^1.2.49",
+    "rimraf": "^5.0.5"
+  },
+  "scripts": {
+    "start": "cds-serve",
+    "mcp:start": "node mcp/server.js",
+    "watch-purchaseorders": "cds watch --open enterprise.ai.purchaseorders/index.html?sap-ui-xx-viewCache=false --livereload false",
+    "undeploy": "cf undeploy enterprise-ai-assistant --delete-services --delete-service-keys --delete-service-brokers",
+    "build": "rimraf resources mta_archives && mbt build --mtar archive",
+    "deploy": "cf deploy mta_archives/archive.mtar --retries 1"
+  },
+  "private": true,
+  "cds": {
+    "requires": {
+      "[production]": {
+        "auth": "xsuaa"
+      },
+      "destinations": true,
+      "html5-repo": true
+    }
+  },
+  "workspaces": [
+    "app/*"
+  ],
+  "sapux": [
+    "app/purchaseorders"
+  ]
+}
