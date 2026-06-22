@@ -12,8 +12,12 @@ const { createProcurementRepository } = require('./procurement-repository')
 const { registerProcurementTools } = require('./tools')
 
 async function createServer() {
-  cds.model = cds.model || await cds.load('*')
-  await cds.connect.to('db')
+  const db = await cds.connect.to('db')//database connection to the db service defined in the CDS model
+  const model = cds.model || await cds.load('*')
+  if (db.kind === 'sqlite') {
+    await cds.deploy(model).to(db)//generate the databse table and populate them using CSV files 
+  }
+  cds.model = cds.linked(model)
 
   const server = new McpServer({
     name: 'sap-procurement-mcp',
@@ -24,28 +28,25 @@ async function createServer() {
 }
 
 async function main() {
-  const server = await createServer()
   const activeTransports = new Map()
 
   const app = express()
   app.use(express.json())
 
-  // Handle all MCP Streamable HTTP requests (GET for SSE stream, POST for messages, DELETE to close session)
   app.all('/mcp', async (req, res) => {
     const sessionId = req.headers['mcp-session-id']
-
     let transport
 
     if (sessionId && activeTransports.has(sessionId)) {
-      // Reuse existing transport for this session
       transport = activeTransports.get(sessionId)
     } else {
-      // For GET or DELETE requests, if sessionId is not found or invalid, return error early
       if (req.method === 'GET' || req.method === 'DELETE') {
         return res.status(404).send('Session not found.')
       }
 
-      // New session — create a fresh transport (expected on POST for initialization)
+      // ← create a fresh McpServer per session
+      const server = await createServer()
+
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => crypto.randomUUID(),
         onsessioninitialized: (newSessionId) => {

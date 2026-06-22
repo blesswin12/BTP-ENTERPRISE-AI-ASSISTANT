@@ -16,11 +16,10 @@ function createProcurementRepository(cds) {
   const { SELECT } = cds.ql
 
   function entities() {
-    const result = cds.entities('enterprise.ai')
-    if (!result) throw new Error('CDS model enterprise.ai is not loaded')
-    return result
+    if (!cds.model) throw new Error('CDS model is not loaded')
+    return cds.entities('enterprise.ai')
   }
-
+   //uses CQL- CAP's query language, which is a SQL-like syntax for querying CDS entities 
   async function searchPurchaseOrders(filters = {}) {
     const { PurchaseOrders } = entities()
     const where = {}
@@ -42,7 +41,8 @@ function createProcurementRepository(cds) {
       .filter(row => filters.maxAmount == null || Number(row.totalAmount) <= filters.maxAmount)
       .slice(0, limit(filters.limit))
   }
-
+   
+  //uses Deep Compositions Expansion - uses [expnad * ] on the composed item s
   async function getPurchaseOrder(purchaseOrder) {
     const { PurchaseOrders } = entities()
     return cds.run(
@@ -51,7 +51,8 @@ function createProcurementRepository(cds) {
         .where({ purchaseOrder: purchaseOrder.trim() })
     )
   }
-
+  
+  //Analytical AGgrergations- Fetches the relevant from the models to calculate sums
   async function getSpendSummary(filters = {}) {
     const { PurchaseOrders } = entities()
     const orders = (await cds.run(SELECT.from(PurchaseOrders).columns(
@@ -82,7 +83,9 @@ function createProcurementRepository(cds) {
         .map(([supplier, amount]) => ({ supplier, amount }))
     }
   }
+  
 
+  //Logical Exclusion and Date Comparison - Excludes certain statuses and compares delivery dates to identify late deliveries
   async function listLateDeliveries({ asOf, supplier, limit: resultLimit } = {}) {
     const { PurchaseOrders } = entities()
     const cutoff = asOf || new Date().toISOString().slice(0, 10)
@@ -103,7 +106,9 @@ function createProcurementRepository(cds) {
         daysLate: Math.floor((Date.parse(cutoff) - Date.parse(order.deliveryDate)) / 86400000)
       }))
   }
+  
 
+  //performs Document Retrievel Operations  with promise.all to fetch chunks and documents concurrently, then filters and sorts the results based on matched terms and scores.
   async function searchProcurementDocuments({ query, limit: resultLimit } = {}) {
     const { Embeddings, Documents } = entities()
     const terms = [...new Set(query.toLowerCase().match(/[\p{L}\p{N}-]{2,}/gu) || [])]
