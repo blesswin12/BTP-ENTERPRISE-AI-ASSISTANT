@@ -41,9 +41,7 @@ async function callGroq(systemPrompt, userMessage) {
     throw new Error('Groq API response did not contain an answer')
   }
 
-  return answer
-}
-
+  r
 function getQuestion(req) {
   const question = req.data?.question
   if (!question || typeof question !== 'string' || !question.trim()) {
