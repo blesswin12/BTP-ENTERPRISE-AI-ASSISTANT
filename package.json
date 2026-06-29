@@ -6,6 +6,8 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@sap/cds": "^9",
     "@sap/xssec": "^4",
+    "axios": "^1.18.1",
+    "pdf-parse": "^2.4.5",
     "zod": "^3.25.76"
   },
   "devDependencies": {

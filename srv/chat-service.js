@@ -41,7 +41,9 @@ async function callGroq(systemPrompt, userMessage) {
     throw new Error('Groq API response did not contain an answer')
   }
 
-  r
+  return answer
+}
+
 function getQuestion(req) {
   const question = req.data?.question
   if (!question || typeof question !== 'string' || !question.trim()) {
@@ -52,6 +54,26 @@ function getQuestion(req) {
 
 function toTimestamp() {
   return new Date().toISOString()
+}
+
+async function extractText(fileName, content) {
+  const isPDF = fileName.toLowerCase().endsWith('.pdf')
+  if (!isPDF) {
+    return content 
+  }
+  try {
+    const buffer = Buffer.from(content, 'base64')
+    const { PDFParse } = require('pdf-parse')
+    const parser = new PDFParse({ data: buffer })
+    const result = await parser.getText()
+
+    if (!result.text || !result.text.trim()) {
+      throw new Error('No text extracted from PDF')
+    }
+    return result.text
+  } catch (error) {
+    throw new Error(`Failed to extract text from PDF: ${error.message}`)
+  }
 }
 
 module.exports = cds.service.impl(async function () {
@@ -66,12 +88,12 @@ module.exports = cds.service.impl(async function () {
     const dataContext = JSON.stringify(orders, null, 2)
 
     const systemPrompt = `You are a procurement analytics assistant.
-You have access to the following purchase order data:
-${dataContext}
+    You have access to the following purchase order data:
+    ${dataContext}
 
-Answer the user's question using only this data.
-Be concise, use numbers, and mention percentages where relevant.
-Format your answer in plain text.`
+    Answer the user's question using only this data.
+    Be concise, use numbers, and mention percentages where relevant.
+    Format your answer in plain text.`
 
     const answer = await callGroq(systemPrompt, question)
 
@@ -137,21 +159,35 @@ If the answer is not in the excerpts, say "I could not find this in the uploaded
     const tx = cds.tx(req)
     const docID   = cds.utils.uuid()
     const fileName = filename.trim()
+    const isPDF = fileName.toLowerCase().endsWith('.pdf')
+
+    let extractedText
+    try {
+      extractedText = await extractText(fileName, content)
+    } catch (error) {
+      req.reject(400, `Failed to process document: ${error.message}`)
+    }
+
+    const cleanText = extractedText
+      .replace(/\r\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
 
     await tx.run(INSERT.into(Documents).entries({
       ID         : docID,
       fileName,
-      content,
+      content    : cleanText,
       uploadedAt : toTimestamp(),
-      fileType   : 'text'
+      fileType   : isPDF ? 'pdf' : 'text'
     }))
 
     const chunkSize = 500
+    const overlap = 50
     const chunks = []
-    for (let i = 0; i < content.length; i += chunkSize) {
-      chunks.push(content.substring(i, i + chunkSize))
-    }
-
+    for (let i = 0; i < cleanText.length; i += chunkSize - overlap) {
+      const chunk = cleanText.substring(i, i + chunkSize)
+      if (chunk.trim()) chunks.push(chunk)
+     }
     await tx.run(INSERT.into(Embeddings).entries(
       chunks.map((chunk, index) => ({
         ID         : cds.utils.uuid(),
