@@ -32,6 +32,12 @@
       "[production]": {
         "auth": "xsuaa"
       },
+      "db": {
+        "kind": "sqlite",
+        "credentials": {
+          "url": "db.sqlite"
+        }
+      },
       "destinations": true,
       "html5-repo": true
     }

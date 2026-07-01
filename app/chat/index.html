@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enterprise AI Assistant - Chat</title>
+  
+  <!-- Font and Icon Assets -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Custom Styling -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Markdown Parsing Support -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar / Control Panel -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-area">
+          <div class="logo-icon"><i class="fa-solid fa-brain-circuit"></i></div>
+          <span class="logo-text">Procure<span class="highlight">AI</span></span>
+        </div>
+        <p class="sidebar-subtitle">Enterprise Assistant</p>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="section-container">
+        <h3 class="section-title">Quick Actions</h3>
+        <button id="btn-summary" class="action-btn">
+          <i class="fa-solid fa-file-invoice-dollar"></i>
+          <span>Executive Spend Summary</span>
+        </button>
+      </div>
+
+      <!-- File Uploader -->
+      <div class="section-container">
+        <h3 class="section-title">Document RAG Upload</h3>
+        <div id="drop-zone" class="upload-dropzone">
+          <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+          <p class="upload-text">Drag & drop files or click to upload</p>
+          <span class="upload-subtext">Supports PDF, TXT (Max 5MB)</span>
+          <input type="file" id="file-input" accept=".txt,.pdf" style="display: none;" />
+        </div>
+        
+        <!-- Upload Status List -->
+        <div id="uploaded-files-list" class="uploaded-list">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="connection-status">
+          <span class="status-indicator online"></span>
+          <span>Connected to CAP Service</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Chat Workspace -->
+    <main class="chat-workspace">
+      <header class="chat-header">
+        <div class="header-info">
+          <h2 class="chat-title">Procurement Copilot</h2>
+          <p id="chat-mode-subtitle" class="chat-subtitle">Mode: Purchase Order Analytics</p>
+        </div>
+        
+        <!-- Mode Switcher -->
+        <div class="mode-toggle-group">
+          <button id="mode-analytics" class="mode-toggle-btn active" data-mode="analytics">
+            <i class="fa-solid fa-chart-line"></i>
+            <span>PO Analytics</span>
+          </button>
+          <button id="mode-document" class="mode-toggle-btn" data-mode="document">
+            <i class="fa-solid fa-file-lines"></i>
+            <span>Document Q&A</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Message History Pane -->
+      <div id="chat-messages" class="chat-messages-container">
+        <div class="message system">
+          <div class="message-avatar"><i class="fa-solid fa-robot"></i></div>
+          <div class="message-bubble">
+            <p>Welcome! I am your Enterprise Procurement Assistant. I can help you analyze purchase orders, summarize spend, or answer questions from uploaded policies and documents.</p>
+            <p class="suggestions-title">Try asking things like:</p>
+            <div class="suggestions-grid">
+              <button class="suggestion-chip">What is the total spend across all orders?</button>
+              <button class="suggestion-chip">List late deliveries for supplier 'Telepathic Computers'</button>
+              <button class="suggestion-chip">Compare pending vs approved purchase orders</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- User Input Bar -->
+      <footer class="chat-input-area">
+        <form id="chat-form" class="input-form">
+          <textarea 
+            id="chat-input" 
+            placeholder="Ask a question about your purchase orders..." 
+            rows="1" 
+            required
+          ></textarea>
+          <button type="submit" id="btn-send" class="send-btn">
+            <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </form>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Toast Notification System -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
