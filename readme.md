@@ -1,10 +1,10 @@
-# 🤖 SAP Enterprise AI Assistant & Procurement MCP Server
+# SAP Enterprise AI Assistant and Procurement MCP Server
 
 Welcome to the **SAP Enterprise AI Assistant** project. This is a Cloud Application Programming (CAP) model application deployed on SAP BTP, integrated with an AI Chat Interface and a custom **Model Context Protocol (MCP)** server to query, search, and analyze SAP procurement data (Purchase Orders, spend summaries, etc.) as well as parse and search uploaded PDF/text documents.
 
 ---
 
-## 📸 Chat Interface Screenshot
+## Chat Interface Screenshot
 
 Below is a preview of the Enterprise AI Assistant chat interface:
 
@@ -12,7 +12,7 @@ Below is a preview of the Enterprise AI Assistant chat interface:
 
 ---
 
-## 🌟 Key Features
+## Key Features
 
 1. **AI Chat Assistant**: A web client interface allowing users to converse with the procurement assistant and ask analytical/document-based questions.
 2. **Model Context Protocol (MCP) Server**: A NodeJS MCP Server implementation exposing tools for AI models to query procurement repositories (SQLite/HANA).
@@ -21,19 +21,19 @@ Below is a preview of the Enterprise AI Assistant chat interface:
 
 ---
 
-## 🛠️ MCP Tools Exposed
+## MCP Tools Exposed
 
 The MCP server exposes the following tools to standard MCP clients:
 
-*   🔍 `search_purchase_orders`: Search purchase orders by PO number, supplier, buyer, status, or date range.
-*   📄 `get_purchase_order`: Retrieve a specific purchase order and its associated line items.
-*   📊 `get_spend_summary`: Calculate spend analysis by supplier or date range (segregated by currency).
-*   ⚠️ `list_late_deliveries`: Identify active, uncompleted purchase orders that have passed their scheduled delivery dates.
-*   📁 `search_procurement_documents`: Perform full-text search against uploaded files using keyword relevance.
+*   `search_purchase_orders`: Search purchase orders by PO number, supplier, buyer, status, or date range.
+*   `get_purchase_order`: Retrieve a specific purchase order and its associated line items.
+*   `get_spend_summary`: Calculate spend analysis by supplier or date range (segregated by currency).
+*   `list_late_deliveries`: Identify active, uncompleted purchase orders that have passed their scheduled delivery dates.
+*   `search_procurement_documents`: Perform full-text search against uploaded files using keyword relevance.
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 Following the recommended SAP CAP & MCP project layout:
 
@@ -57,7 +57,7 @@ Following the recommended SAP CAP & MCP project layout:
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 *   Node.js (v18+)
@@ -89,7 +89,7 @@ npm install
 
 ---
 
-## ☁️ Deployment
+## Deployment
 
 Build and package the application into an MTA archive (`.mtar`) for deployment on SAP BTP:
 
