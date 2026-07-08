@@ -25,19 +25,19 @@ entity ChatHistory {
       timestamp    : DateTime;
 }
 
-entity PurchaseOrders {
-  key ID            : UUID;
-      purchaseOrder : String(20) not null;
-      supplier      : String(120) not null;
-      buyer         : String(100);
-      orderDate     : Date;
-      deliveryDate  : Date;
-      status        : String(30);
-      currency      : String(3);
-      totalAmount   : Decimal(15,2);
-      items         : Composition of many PurchaseOrderItems
-                        on items.purchaseOrder = $self;
-}
+// entity PurchaseOrders {
+//   key ID            : UUID;
+//       purchaseOrder : String(20) not null;
+//       supplier      : String(120) not null;
+//       buyer         : String(100);
+//       orderDate     : Date;
+//       deliveryDate  : Date;
+//       status        : String(30);
+//       currency      : String(3);
+//       totalAmount   : Decimal(15,2);
+//       items         : Composition of many PurchaseOrderItems
+//                         on items.purchaseOrder = $self;
+// }
 
 entity PurchaseOrderItems {
   key ID            : UUID;
@@ -51,4 +51,35 @@ entity PurchaseOrderItems {
       netAmount     : Decimal(15,2);
       plant         : String(30);
       deliveryDate  : Date;
+}
+
+entity PurchaseOrders {
+  key ID            : UUID;
+      purchaseOrder : String(20)  not null;
+      supplier      : String(120) not null;
+      buyer         : String(100);
+      orderDate     : Date;
+      deliveryDate  : Date;
+      status        : POStatus    default 'Pending';
+      currency      : POCurrency  default 'INR';
+      totalAmount   : Decimal(15,2);
+      virtual criticality   : Integer;
+      items         : Composition of many PurchaseOrderItems
+                        on items.purchaseOrder = $self;
+}
+
+type POStatus : String(20) enum {
+  Pending;
+  Approved;
+  Rejected;
+  Cancelled;
+  Completed;
+}
+
+type POCurrency : String(3) enum {
+  INR;
+  USD;
+  EUR;
+  GBP;
+  SGD;
 }

@@ -14,6 +14,41 @@ service ChatService @(path: '/chat') {
     action getSummary     () returns String;
 }
 
+annotate ChatService.PurchaseOrders with {
+    purchaseOrder @mandatory;
+    supplier      @mandatory;
+    buyer         @mandatory;
+    orderDate     @mandatory;
+    deliveryDate  @mandatory;
+
+    status @(
+        Common.ValueListWithFixedValues : true,
+        Common.ValueList : {
+            CollectionPath : 'PurchaseOrders',
+            Parameters     : [{
+                $Type             : 'Common.ValueListParameterOut',
+                LocalDataProperty : status,
+                ValueListProperty : 'status'
+            }]
+        }
+    );
+
+    currency @(
+        Common.ValueListWithFixedValues : true,
+        Common.ValueList : {
+            CollectionPath : 'PurchaseOrders',
+            Parameters     : [{
+                $Type             : 'Common.ValueListParameterOut',
+                LocalDataProperty : currency,
+                ValueListProperty : 'currency'
+            }]
+        }
+    );
+}
+
+
+
+
 annotate ChatService.PurchaseOrders with @(
     UI.HeaderInfo:{
         TypeName       : 'Purchase Order',
@@ -27,10 +62,20 @@ annotate ChatService.PurchaseOrders with @(
         { $Type : 'UI.DataField', Value : buyer,         Label : 'Buyer'          },
         { $Type : 'UI.DataField', Value : orderDate,     Label : 'Order Date'     },
         { $Type : 'UI.DataField', Value : deliveryDate,  Label : 'Delivery Date'  },
-        { $Type : 'UI.DataField', Value : status,        Label : 'Status'         },
+        {
+            $Type       : 'UI.DataFieldForAnnotation',
+            Target      : '@UI.DataPoint#StatusCriticality',
+            Label       : 'Status'
+        },
         { $Type : 'UI.DataField', Value : totalAmount,   Label : 'Total Amount'   },
         { $Type : 'UI.DataField', Value : currency,      Label : 'Currency'       }
     ],
+    UI.DataPoint #StatusCriticality : {
+        Value       : status,
+        Criticality : criticality,
+        Title       : 'Status'
+    },
+
     UI.FieldGroup #HeaderInfo : {
         Label : 'Header Information',
         Data  : [
@@ -39,7 +84,11 @@ annotate ChatService.PurchaseOrders with @(
             { $Type : 'UI.DataField', Value : buyer,         Label : 'Buyer'          },
             { $Type : 'UI.DataField', Value : orderDate,     Label : 'Order Date'     },
             { $Type : 'UI.DataField', Value : deliveryDate,  Label : 'Delivery Date'  },
-            { $Type : 'UI.DataField', Value : status,        Label : 'Status'         },
+            {
+                $Type  : 'UI.DataFieldForAnnotation',
+                Target : '@UI.DataPoint#StatusCriticality',
+                Label  : 'Status'
+            },
             { $Type : 'UI.DataField', Value : totalAmount,   Label : 'Total Amount'   },
             { $Type : 'UI.DataField', Value : currency,      Label : 'Currency'       }
         ]
@@ -57,6 +106,12 @@ annotate ChatService.PurchaseOrders with @(
             Label  : 'Line Items',
             Target : 'items/@UI.LineItem'
         }
+    ],
+    UI.SelectionFields : [
+        purchaseOrder,
+        supplier,
+        status,
+        orderDate
     ]
 );
 annotate ChatService.PurchaseOrderItems with @(

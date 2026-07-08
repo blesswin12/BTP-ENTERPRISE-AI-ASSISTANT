@@ -172,7 +172,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const reader = new FileReader();
     reader.onload = async (event) => {
       statusBadge.textContent = 'Uploading...';
-      const fileText = event.target.result;
+      let fileText = event.target.result;
+
+      if(file.name.toLowerCase().endsWith('.pdf')) {
+        // For PDF, we can use a library like pdf.js to extract text, but for simplicity, let's just send a placeholder
+        const commaIndex = fileText.indexOf(',');
+        if (commaIndex !== -1) {
+          fileText = fileText.substring(commaIndex + 1); // Remove data URL prefix if present
+        }
+      } 
       
       try {
         const response = await fetch('/chat/uploadDocument', {
@@ -212,7 +220,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // If PDF, we warn that text extraction is client-side mock here, or read it as binary
     // In our scope, let's read as Text since the action expects content: String
-    reader.readAsText(file);
+    if(file.name.toLowerCase().endsWith('.pdf')) {
+      // For simplicity, we will read as ArrayBuffer and convert to base64 string
+      reader.readAsDataURL(file);
+    } else {
+      reader.readAsText(file);
+    }
   }
 
   // Handle Form Submission

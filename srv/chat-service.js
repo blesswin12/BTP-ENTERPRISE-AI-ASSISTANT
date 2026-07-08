@@ -112,11 +112,30 @@ module.exports = cds.service.impl(async function () {
   this.on('askDocument', async req => {
     const question = getQuestion(req)
     const tx = cds.tx(req)
-    const searchTerm = question.split(/\s+/).find(Boolean)
-
+    
+    // Stop words to filter out from search terms
+    const STOP_WORDS = new Set([
+      'what', 'when', 'where', 'how', 'why', 'who', 'which', 'whom', 
+      'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 
+      'had', 'do', 'does', 'did', 'the', 'a', 'an', 'and', 'but', 'if', 
+      'or', 'because', 'as', 'until', 'while', 'of', 'at', 'by', 'for', 
+      'with', 'about', 'to', 'from', 'in', 'on', 'at', 'by', 'required'
+    ])
+    
+    const keywords = question.toLowerCase()
+      .split(/[^\w]+/)
+      .filter(w => w.length > 2 && !STOP_WORDS.has(w))
+      
     const query = SELECT.from(Embeddings).limit(5)
-    if (searchTerm) {
-      query.where({ chunkText: { like: `%${searchTerm}%` } })
+    if (keywords.length > 0) {
+      const clause = keywords.map(kw => `lower(chunkText) like '%${kw.replace(/'/g, "''")}%'`).join(' or ')
+      query.where(clause)
+    } else {
+      // Fallback to first word if no keywords match
+      const firstWord = question.split(/\s+/).find(Boolean)
+      if (firstWord) {
+        query.where({ chunkText: { like: `%${firstWord}%` } })
+      }
     }
 
     const chunks = await tx.run(query)
