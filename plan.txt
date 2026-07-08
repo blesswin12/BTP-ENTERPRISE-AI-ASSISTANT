@@ -1,0 +1,462 @@
+# PROJECT PLAN & STATUS SUMMARY: ENTERPRISE AI ASSISTANT (ProcureAI)
+
+Created At: 2026-06-26
+
+This document outlines the current architecture of the Enterprise AI Assistant project, summarizes what is deployed, and proposes actionable objectives for the next development phase.
+
+---
+
+## 1. Overall Project Architecture & Summary
+
+The Enterprise AI Assistant (fronted as **ProcureAI**) is an enterprise-grade solution built on the SAP Cloud Application Programming Model (CAP) and integrated with the Model Context Protocol (MCP). It runs on SAP Business Technology Platform (BTP) and uses Groq (Llama-3.3-70b-versatile) for orchestration, analytics, and QA.
+
+### Core Components:
+1. **CAP Backend (srv/ & db/)**
+   - **Data Model:** Defined in `db/schema.cds` containing entities for `PurchaseOrders`, `PurchaseOrderItems`, `Documents`, `Embeddings`, and `ChatHistory`.
+   - **Services:** Exposes `ChatService` which implements:
+     - `askAnalytics`: Uses Groq to answer procurement analytics questions based on live database query context.
+     - `askDocument`: Implements a text-search based QA system over document chunks.
+     - `uploadDocument`: Hand-off for chunking text files into 500-character segments stored in the database.
+     - `getSummary`: Generates a spend and supplier performance summary.
+
+2. **Model Context Protocol (MCP) Server (mcp/)**
+   - Implements a dedicated Express-based MCP Server (`mcp/server.js`) using `StreamableHTTPServerTransport` to manage dynamic sessions.
+   - Registers custom procurement tools (`search_purchase_orders`, `get_purchase_order`, `get_spend_summary`, `list_late_deliveries`, `search_procurement_documents`) allowing LLMs to directly fetch database info.
+
+3. **Frontend Applications (app/)**
+   - **ProcureAI Chat UI (`app/chat`)**: Custom-styled HTML5/CSS/JS interface allowing users to toggle between PO Analytics and Document Q&A modes, upload guidelines, and view markdown-rendered answers.
+   - **Purchase Orders Fiori UI (`app/purchaseorders`)**: Standard Fiori Elements app for managing raw SAP purchase orders.
+   - **App Router (`app/router`)**: Routing entryway that securely bridges and forwards auth tokens between the frontend, the CAP service (`srv-api`), and the MCP server (`mcp-api`).
+
+---
+
+## 2. Current Deployment Status
+
+- **Deployment Configuration:** Standard Multi-Target Application (MTA) descriptor `mta.yaml` is fully configured. It binds necessary SAP BTP resources:
+  - **UAA (XSUAA):** `enterprise-ai-assistant-auth`
+  - **HANA HDI Container:** `enterprise-ai-assistant-db`
+  - **HTML5 Repo Host & Runtime:** For Fiori elements applications.
+  - **Destination Service:** For external endpoint routing.
+- **Build Status:** The MTA archive (`enterprise-ai-assistant_1.0.0.mtar`) has been successfully built and resides in `mta_archives/`.
+- **Environment:** Production deployments target Cloud Foundry via `cf deploy`. Local development runs via `cds watch` and `npm run mcp:start` (running local SQLite database and mock configurations).
+
+---
+
+## 3. Recently Resolved Issues
+
+### A. Document Upload Bug ("require(...) is not a function" / Inverted PDF logic)
+- **Problem:** Attempting to upload a plain-text document (`policy.txt`) failed with a 400 error: `"Failed to process document: Failed to extract text from PDF: require(...) is not a function"`.
+- **Causes:**
+  1. **Inverted PDF detection logic:** The check `if (isPDF) { return content }` in `extractText` was backwards. It skipped processing for actual PDFs and ran the PDF parser for non-PDF documents.
+  2. **Incorrect API usage of the `pdf-parse` library:** The code assumed `require('pdf-parse')` returns a function, calling it like `require('pdf-parse')(...)`. However, version `2.4.5` of `pdf-parse` (by Mehmet Kozan) exports helper classes, so calling the required module directly as a function threw `require(...) is not a function`.
+  3. **ReferenceError:** The chunking loop referenced `overlap` which was undefined.
+- **Resolution:**
+  - Inverted the condition to `if (!isPDF) { return content }`.
+  - Rewrote PDF text extraction using the correct API:
+    ```javascript
+    const { PDFParse } = require('pdf-parse')
+    const parser = new PDFParse({ data: buffer })
+    const result = await parser.getText()
+    return result.text
+    ```
+  - Defined the `overlap` constant to `50` in the `uploadDocument` handler.
+
+---
+
+## 4. Roadmap for the Next Phase
+
+The following improvements and features are proposed for the next phase of development:
+
+### A. Advanced RAG (Vector Search) on SAP HANA Cloud
+*   **Current State:** Document search uses a simple keyword/substring regex match on text chunks.
+*   **Next Steps:** Leverage the **HANA Vector Engine**. Refactor the `Embeddings` entity in `schema.cds` to use the `Vector` type (via `@cap-js/hana`), and integrate an embedding API (e.g., SAP AI Core or OpenAI) to perform true semantic vector similarity search using `COSINE_SIMILARITY`.
+
+### B. Secure MCP Server Endpoints
+*   **Current State:** The Express server running the MCP endpoint does not validate incoming requests.
+*   **Next Steps:** Enforce JSON Web Token (JWT) validation in `mcp/server.js` using `@sap/xssec` to verify requests forwarded by the App Router.
+
+### C. Robust Backend Document & PDF Parsing
+*   **Current State:** The frontend reads files as raw text strings via `FileReader.readAsText`, meaning uploaded PDFs result in unreadable binary data.
+*   **Next Steps:** Implement backend document parsing in `uploadDocument` using a library like `pdf-parse` (or use SAP AI Core's Document Information Extraction service) to extract text content before indexing.
+
+### D. LLM Governance with SAP AI Core
+*   **Current State:** Raw Groq API keys are loaded directly from the system environment.
+*   **Next Steps:** Integrate with **SAP AI Core (Generative AI Hub)**. This centralizes key management, provides usage auditing, and lets you easily switch between foundation models (GPT-4o, Llama-3, etc.) without altering backend code.
+
+### E. User Experience & Feature Additions
+*   **Conversation Persistence:** Fetch historical records from the `ChatHistory` entity to display past chats when a user reloads the page.
+*   **Source Citations:** Show exactly which document name and chunk index contributed to the answers in Document Q&A mode.
+
+
+Based on the codebase analysis, here is the complete usage, definition, and consumption of REST/OData APIs in this application.
+  ──────
+  ### 1. Service Definition & Routing
+
+  The application is built using the SAP Cloud Application Programming Model (CAP).
+  • The OData service is named  ChatService .
+  • It is exposed at the base path  /chat  (or  /chat/  for OData consumption).
+  • Defined in: chat-service.cds
+  • Implemented in: chat-service.js
+  ──────
+  ### 2. OData Entities
+  The service exposes the following OData entities (mapped to underlying database tables defined in schema.cds). These support
+  standard CRUD (Create, Read, Update, Delete) HTTP verbs according to their annotations:
+   Entity Name      | API Endpoint           | Supported HTTP Operations        | Description
+  ------------------|------------------------|----------------------------------|---------------------------------------------------
+    ChatHistory     |  /chat/ChatHistory     |  GET  (Read-only  @readonly )     | Stores user questions, AI responses, timestamps,
+                        |                            |                                     | timestamps, and corresponding feature
+                        |                            |                                      | types (Analytics, RAG, Summary).
+    Documents           |  /chat/Documents           |  GET  (Read-only  @readonly )        | Holds files (such as  .pdf ,  .txt , 
+                        |                            |                                      | .md ) uploaded by users, their file
+                        |                            |                                      | types, and upload timestamps.
+    PurchaseOrders      |  /chat/PurchaseOrders      |  GET ,  POST ,  PATCH ,  DELETE      | Represents procurement headers
+                        |                            | (Draft Enabled)                      | including order dates, vendor names,
+                        |                            |                                      | buyers, currency, status, and total
+                        |                            |                                      | amounts.
+    PurchaseOrderItems  |  /chat/PurchaseOrderItems  |  GET ,  POST ,  PATCH ,  DELETE      | Represents line items linked to
+                        |                            |                                      | individual purchase orders, showing
+                        |                            |                                      | items, quantities, pricing, and
+                        |                            |                                      | plants.
+  ──────
+  ### 3. Custom REST Actions (OData Actions)
+  Custom business logic is bound to the service and triggered as POST requests.
+
+  #### 1.  askAnalytics 
+
+  • Endpoint:  POST /chat/askAnalytics 
+  • Input Parameters:  { "question": "String" } 
+  • Returns:  String 
+  • Implementation:
+  Queries all  PurchaseOrders  from the database. It constructs a system prompt containing the live purchase order context and
+  forwards the user query to the Groq API ( llama-3.3-70b-versatile ). It saves the transaction to  ChatHistory  and returns the
+  generated answer.
+
+  #### 2.  askDocument 
+
+  • Endpoint:  POST /chat/askDocument 
+  • Input Parameters:  { "question": "String" } 
+  • Returns:  String 
+  • Implementation:
+  Tokenizes the question into keywords and runs a text-matching query against the  Embeddings  table. The top 5 document chunks are
+  compiled as text context and sent to the Groq API for Retrieval-Augmented Generation (RAG). The conversation is logged to 
+  ChatHistory .
+
+  #### 3.  uploadDocument 
+
+  • Endpoint:  POST /chat/uploadDocument 
+  • Input Parameters:  { "filename": "String", "content": "String (base64/text)" } 
+  • Returns:  String  (Success confirmation detailing chunk numbers)
+  • Implementation:
+  Processes document text. If a PDF is uploaded, it extracts the content on the server using  pdf-parse . The text is sanitized,
+  stored in  Documents , and partitioned into 500-character chunks (with a 50-character overlap) to populate the  Embeddings  table
+  for search.
+
+  #### 4.  getSummary 
+
+  • Endpoint:  POST /chat/getSummary 
+  • Input Parameters:  {}  (None)
+  • Returns:  String 
+  • Implementation:
+  Retrieves all  PurchaseOrders  and uses Groq to produce a short executive overview summarizing: total spend, count of orders by
+  status (approved/pending/rejected), top supplier, and recommendation points.
+  ──────
+  ### 4. API Consumption in Frontend Clients
+
+  #### A. ProcureAI Chat UI Client
+
+  Defined in app.js, the frontend consumes these endpoints directly:
+
+  •  fetch('/chat/getSummary') : Executed when the user clicks the "Executive Spend Summary" quick action button.
+  •  fetch('/chat/uploadDocument') : Triggers upon dragging and dropping files or selecting them through the input panel (transfers
+  filename and text content).
+  •  fetch('/chat/askAnalytics')  /  fetch('/chat/askDocument') : Selects the appropriate endpoint dynamically based on the current
+  mode toggle and posts user questions.
+
+  #### B. SAP Fiori Elements UI Client
+
+  Defined in manifest.json:
+
+  • Uses  /chat/  as its OData V4 source ( mainService ).
+  • Uses metadata annotations to dynamically build tables, input fields, object pages, and list view grids, binding them directly to
+  OData CRUD endpoints  /chat/PurchaseOrders  and  /chat/PurchaseOrderItems .
+  ──────
+  ### 5. Model Context Protocol (MCP) Endpoint
+
+  In addition to the standard web clients, the program exposes an MCP API wrapper defined in server.js:
+
+  • Endpoint:  /mcp 
+  • Transport: HTTP-based  StreamableHTTPServerTransport  (listening on port  3000 ).
+  • Functionality: Exposes 5 repository-backed tools mapped from database tables and custom queries to let external AI agents
+  interact with the application’s backend:
+      1.  search_purchase_orders 
+      2.  get_purchase_order 
+      3.  get_spend_summary 
+      4.  list_late_deliveries 
+      5.  search_procurement_documents 
+
+----------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Thought Process
+  Pinpointing Database Access
+  Here is a complete report detailing every database access point, target table, and query statement used across the project.
+
+  Database access in this project is implemented using SAP CAP’s Query Language (CQL) and executed via the core  @sap/cds 
+  framework.
+  ──────
+  ### 1. File:  srv/chat-service.js 
+
+  This file implements custom event handlers for the service entities and actions. It retrieves the transaction context using 
+  cds.tx(req)  and executes queries inside it.
+  • Target File: chat-service.js
+  • Accessed Entities:  PurchaseOrders ,  ChatHistory ,  Documents ,  Embeddings 
+  #### Database Queries Performed:
+  ##### A. Analytics Chat ( askAnalytics )
+  1. Retrieve Purchase Orders (Read)
+    await tx.run(SELECT.from(PurchaseOrders))
+    Fetches all purchase order records to feed as raw context into the LLM.
+  2. Log Chat History (Write)
+    await tx.run(INSERT.into(ChatHistory).entries({
+      ID           : cds.utils.uuid(),
+      userQuestion : question,
+      aiResponse   : answer,
+      feature      : 'Analytics',
+      timestamp    : toTimestamp()
+    }))
+    Logs the user's analytical question and response.
+  ##### B. Document Search ( askDocument )
+  1. Retrieve Matching Chunks (Read)
+    const query = SELECT.from(Embeddings).limit(5)
+    if (searchTerm) {
+      query.where({ chunkText: { like: `%${searchTerm}%` } })
+    }
+    const chunks = await tx.run(query)
+    Fetches up to 5 document chunks filtered by a SQL  LIKE  operator on the text content.
+  2. Log Chat History (Write)
+  Runs an  INSERT  statement identical to  askAnalytics  but with the feature flag set to  'rag' .
+  ##### C. Document Upload ( uploadDocument )
+  1. Insert Document Meta-Information (Write)
+    await tx.run(INSERT.into(Documents).entries({
+      ID         : docID,
+      fileName,
+      content    : cleanText,
+      uploadedAt : toTimestamp(),
+      fileType   : isPDF ? 'pdf' : 'text'
+    }))
+    Saves raw text and file metadata.
+  2. Insert Text Chunks (Write)
+    await tx.run(INSERT.into(Embeddings).entries(
+      chunks.map((chunk, index) => ({
+        ID         : cds.utils.uuid(),
+        documentID : docID,
+        chunkText  : chunk,
+        chunkIndex : index,
+        embedding  : '[]'
+      }))
+    ))
+    Performs a batch insert of chunked text mapping back to the document via  documentID .
+
+  ##### D. Executive Spend Summary ( getSummary )
+
+  1. Retrieve Purchase Orders (Read)
+    await tx.run(SELECT.from(PurchaseOrders))
+    
+  2. Log Chat History (Write)
+  Runs an  INSERT  statement identical to  askAnalytics  but with the feature flag set to  'Summary' .
+  ──────
+  ### 2. File:  mcp/procurement-repository.js 
+
+  This repository contains read-only database query logic exposed as MCP tools. All queries are executed using  cds.run() .
+
+  • Target File: procurement-repository.js
+  • Accessed Entities:  PurchaseOrders ,  Documents ,  Embeddings 
+
+  #### Database Queries Performed:
+
+  ##### A. Search Purchase Orders ( searchPurchaseOrders )
+
+    let query = SELECT.from(PurchaseOrders).columns(
+      'ID', 'purchaseOrder', 'supplier', 'buyer', 'orderDate',
+      'deliveryDate', 'status', 'currency', 'totalAmount'
+    )
+    if (Object.keys(where).length) query = query.where(where)
+    return (await cds.run(query))
+    
+  Queries explicit purchase order columns, applying optional filters like  purchaseOrder  (exact match),  supplier  (using  LIKE ), 
+  buyer  (using  LIKE ), and  status  (exact match).
+
+  ##### B. Fetch Single Purchase Order with Line Items ( getPurchaseOrder )
+
+    return cds.run(
+      SELECT.one.from(PurchaseOrders)
+        .columns('*', { ref: ['items'], expand: ['*'] })
+        .where({ purchaseOrder: purchaseOrder.trim() })
+    )
+    
+  Selects exactly one Purchase Order and performs a database join expansion ( expand: ['*'] ) on the composition association  items 
+  ( PurchaseOrderItems ).
+
+  ##### C. Fetch Financial Summary Metrics ( getSpendSummary  &  listLateDeliveries )
+
+  1. Spend Summary Query:
+    await cds.run(SELECT.from(PurchaseOrders).columns(
+      'supplier', 'status', 'currency', 'totalAmount', 'orderDate'
+    ))
+    
+  2. Late Deliveries Query:
+    await cds.run(SELECT.from(PurchaseOrders).columns(
+      'ID', 'purchaseOrder', 'supplier', 'buyer', 'deliveryDate',
+      'status', 'currency', 'totalAmount'
+    ))
+    Fetches subset columns from  PurchaseOrders  to run in-memory filters, aggregations, and date checks (such as finding overdue
+  deliveries).
+
+  ##### D. Keyword-based Document Extraction ( searchProcurementDocuments )
+
+    const [chunks, documents] = await Promise.all([
+      cds.run(SELECT.from(Embeddings).columns('ID', 'documentID', 'chunkIndex', 'chunkText').limit(250)),
+      cds.run(SELECT.from(Documents).columns('ID', 'fileName'))
+    ])
+    
+  Triggers parallel  SELECT  read requests to fetch up to 250 chunks alongside all active filenames. The system processes the
+  matching score calculations and ranking directly in the application layer.
+  ──────
+  ### 3. File:  mcp/server.js 
+
+  This file handles connections and setup actions rather than actual query-execution loops.
+
+  • Target File: server.js
+
+  #### Database Operations Performed:
+
+    const db = await cds.connect.to('db')
+    const model = cds.model || await cds.load('*')
+    if (db.kind === 'sqlite') {
+      await cds.deploy(model).to(db)
+    }
+
+  •  cds.connect.to('db') : Establishes connection pools to the backend database service configured in the project context.
+  •  cds.deploy(model).to(db) : Evaluates schema definitions at startup. If running a local SQLite database (for development or
+  testing), it automatically creates the SQL tables and populates them using seed  .csv  files.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+Concept                                   | Used In        | What It Means / Does
+  -------------------------------------------|----------------|-----------------------------------------------------------------------------------------------------------------
+   Namespace ( namespace )                   | schema.cds | Groups entities under a package/domain name ( enterprise.ai ) to prevent name clashes.
+   Using ( using )                           | chat-service.cds | Imports database schemas or external service definitions into the current scope.
+   Projection ( as projection on )           | chat-service.cds | Creates a Service-level view of a database table. In CAP, database entities are hidden; clients interact with
+                                             |                | these projections.
+   Association ( Association to )            | schema.cds | Defines a loose relationship between entities (similar to a SQL Foreign Key). Objects exist independently.
+   Composition ( Composition of )            | schema.cds | Defines a strict parent-child lifecycle. The child entities cannot exist without the parent. (e.g., if you
+                                             |                | delete a Purchase Order, all its Items are deleted).
+   OData Draft Mode ( @odata.draft.enabled ) | chat-service.cds | Automatically generates shadow/draft tables so users can save "in-progress" forms without instantly committing
+                                             |                | them to the main DB.
+   Annotations ( annotate ... with )         | chat-service.cds | Attaches metadata (mostly UI definitions like  UI.LineItem  or  UI.Facets ) to tell SAP Fiori / frontend UIs
+                                             |                | exactly how to render the data.
+   Service Actions ( action )                | chat-service.cds | Defines custom API endpoints (e.g.  askAnalytics ) that trigger custom JavaScript handlers in your server.
+  ──────
+  ### Part 2: How to Memorize Them (Mental Frameworks & Analogies)
+
+  You can easily memorize these concepts by mapping them to three simple pillars: Architecture, Relationships, and Presentations.
+
+  #### 1. The Relationship Analogy: Association vs. Composition
+
+  • Association (Loose link): Think of Friendship.
+      • If a person is deleted from a directory, their friend still exists. They are connected, but independent.
+      • Code:  document : Association to Documents 
+  • Composition (Tight ownership): Think of a Book and its Chapters or Body Parts.
+      • If you burn the book, all its chapters cease to exist. They are part of the book's lifecycle.
+      • Code:  items : Composition of many PurchaseOrderItems 
+
+
+  #### 2. The Service Analogy: Projections vs. Entities
+
+  • Think of the Database Entity as the Raw Ingredients in a kitchen.
+  • Think of the Projection in the service layer as the Menu Item. Customers (clients/APIs) cannot order raw ingredients directly; they must order a menu projection prepared by
+  the kitchen (the service).
+      • Code:  entity PurchaseOrders as projection on db.PurchaseOrders 
+
+
+  #### 3. The "Look & Feel" Analogy: Annotations
+
+  • Think of data types (like  String ,  Decimal ) as the skeleton.
+  • Think of Annotations ( UI.LineItem ,  UI.HeaderInfo ) as the clothing and makeup. They don't change what the data is, they just dictate how it shows up in Fiori/OData
+  clients.
+
+  #### 4. The Action Analogy: Actions vs. Functions
+
+  • Actions (POST request): You want the server to do something (e.g.,  uploadDocument ). Actions can change database states.
+  • Functions (GET request): You want to query or calculate something without modifying data state.
+
+
+Design, develop, and maintain applications using SAP CAPM and Node.js.
+Build backend services using SAP Cloud Application Programming Model.
+Create and manage CDS data models, services, entities, and associations.
+Develop and expose OData services and REST APIs.
+Work on SAP BTP services for cloud-native application development.
+Develop business logic using Node.js, JavaScript, and CAP event handlers.
+Integrate CAPM applications with SAP S/4HANA, SAP Integration Suite, and third-party systems.
+Work with SAP Business Application Studio for development and deployment.
+Support application deployment on SAP BTP Cloud Foundry environment.
+Perform testing, debugging, troubleshooting, and performance optimization.
+Work with destination services, connectivity services, XSUAA, and authentication concepts.
+Collaborate with functional consultants, integration developers, architects, and business users.
+Write clean, reusable, and maintainable code.
+Prepare technical documentation, API documentation, and deployment notes.
+Stay updated with SAP BTP, CAPM, Node.js, and cloud application development best practices.
+
+
+
+1. Multi-Turn Conversation Context & Session Persistence
+
+  • Current State: The assistant is strictly single-turn, and the chat UI resets on page refresh despite history being saved in  ChatHistory .
+  • Next Steps:
+      • Frontend Persistence: Modify app.js to query  /chat/ChatHistory  upon initialization and render historical chat bubbles.
+      • Backend Context: Update  askAnalytics  and  askDocument  in chat-service.js to fetch the last 5 messages from  ChatHistory  and
+      prepend them to the Groq payload as role history ( user / assistant ).
+
+
+  ### 2. Semantic Vector Search (True RAG Engine)
+
+  • Current State: Document chunk retrieval relies on simple SQL keyword matching ( LIKE  queries).
+  • Next Steps:
+      • Vector Schema Migration: Modify the  Embeddings  entity in schema.cds to redefine  embedding : Vector(1536)  for native
+      SQLite/HANA vector support.
+      • Embeddings Integration: Set up an embedding generation client (using OpenAI, SAP AI Core, or Hugging Face) to generate embeddings
+      during document ingestion in  uploadDocument .
+      • Vector Querying: Replace  LIKE  queries in  askDocument  in chat-service.js with a native  cosine_similarity(embedding, :queryVector) 
+      distance query.
+
+
+  ### 3. Interactive Document Viewer & Source Citations
+
+  • Current State: Users have no insight into which documents or chunks generated the Q&A responses.
+  • Next Steps:
+      • Backend Citations: Modify the  askDocument  action to return a structured JSON response containing the matching chunk text along with
+      their source filename and index.
+      • Interactive UI: Add an expandable sidebar to the right of the chat screen in index.html and app.js. Clicking on a source
+      citation in a chat bubble should open the document viewer and highlight the source chunk.
+
+
+  ### 4. Autonomous Agentic Workflows
+
+  • Current State: Users must manually select between Purchase Order Analytics and Document Q&A modes.
+  • Next Steps:
+      • LLM Router: Introduce an orchestration layer in the backend that automatically classifies the user's intent to decide whether to
+      query the database, retrieve documents, or do both.
+      • MCP Integration: Allow the LLM to dynamically call the exposed tools from server.js sequentially, eliminating manual endpoint
+      choosing.
+
+
+  ### 5. Secure MCP Server Endpoints (JWT Authorization)
+
+  • Current State: The Express server running the MCP endpoint ( http://localhost:3000/mcp ) does not authenticate incoming requests.
+  • Next Steps:
+      • JWT Validation: Enforce JWT checks in server.js using  @sap/xssec  to validate request tokens forwarded by the SAP BTP App
+      Router.
+
+  ──────
+  ### How to Begin
