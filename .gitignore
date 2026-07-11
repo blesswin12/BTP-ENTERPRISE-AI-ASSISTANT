@@ -17,3 +17,29 @@ mta_archives/
 
 # @cap-js/cds-typer
 @cds-models
+
+.env
+
+# UI5 build outputs
+app/purchaseorders/dist/
+app/purchaseorders/.appGenInfo.json
+
+# Logs & temp files
+*.log
+*.orig
+*.rej
+.gen/
+
+# Scratch files
+plan.txt
+node.txt
+give
+
+# Databases & local configs
+MTnXsQJitywP*
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+db.sqlite-shm
+db.sqlite-wal
+db.sqlite-journal
