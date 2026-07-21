@@ -9,6 +9,38 @@ const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js')
 const { SSEServerTransport } = require('@modelcontextprotocol/sdk/server/sse.js')
 const { createProcurementRepository } = require('./procurement-repository')
 const { registerProcurementTools } = require('./tools')
+const xssec = require('@sap/xssec')
+const xsenv = require('@sap/xsenv')
+
+let uaaService
+try {
+  uaaService = xsenv.getServices({ uaa: { tag: 'xsuaa' } }).uaa
+} catch (err) {
+  console.warn('No UAA service found. Authentication will not be enforced.')
+}
+
+
+// Adding a middleware to authenticate XSUAA
+async function authenticate(req, res, next) {
+  if (!uaaService) {
+    return next()
+  }
+  const authHeader = req.headers['authorization']
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.error('Missing or invalid Authorization header')
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+  const token = authHeader.substring(7) // Remove 'Bearer ' prefix
+  try {
+    const securityContext = await xssec.createSecurityContext(token, uaaService)
+    req.authInfo = securityContext
+    return next()
+  } catch (err) {
+    console.error('Authentication failed:', err)
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+}
+
 
 async function buildCdsModel() {
   const db = await cds.connect.to('db')
@@ -35,15 +67,15 @@ async function main() {
   const app = express()
   app.use(express.json())
 
+  // Use JWT validation
+  app.use(['/mcp', '/mcp/messages'], authenticate)
+
+  
   // SSE endpoint — client connects here first
-  app.get('/mcp', async (req, res) => {
+  app.get('/mcp', async (req, res) => {             //opens up the mcp server for the client to connect to, and then the client can send messages to the server via the /mcp/messages endpoint. The server will respond with events that the client can listen to.
     console.log('New SSE connection request')
 
-    res.setHeader('Content-Type', 'text/event-stream')
-    res.setHeader('Cache-Control', 'no-cache')
-    res.setHeader('Connection', 'keep-alive')
     res.setHeader('Access-Control-Allow-Origin', '*')
-    res.flushHeaders()
 
     const transport = new SSEServerTransport('/mcp/messages', res)
     const sessionId = transport.sessionId

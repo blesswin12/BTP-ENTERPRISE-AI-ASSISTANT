@@ -10,7 +10,8 @@
     "@cap-js/hana": "^2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@sap/cds": "^9",
-    "@sap/xssec": "^4",
+    "@sap/xsenv": "^6.2.1",
+    "@sap/xssec": "^4.13.1",
     "express": "^5.2.1",
     "zod": "^3.25.76"
   },

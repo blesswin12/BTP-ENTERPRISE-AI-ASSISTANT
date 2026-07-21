@@ -10,6 +10,7 @@ modules:
   - name: enterprise-ai-assistant-auth
   - name: enterprise-ai-assistant-db
   - name: enterprise-ai-assistant-destination
+  - name: enterprise-ai-assistant-logging
   - name: mcp-api                            # ← injected MCP_SERVER_URL here
     properties:
       MCP_SERVER_URL: ~{mcp-url}
@@ -22,12 +23,15 @@ modules:
     instances: 1
   build-parameters:
     builder: npm-ci
+
+
 - name: enterprise-ai-assistant-mcp
   type: nodejs
   path: mcp
   requires:
   - name: enterprise-ai-assistant-auth
   - name: enterprise-ai-assistant-db
+  - name: enterprise-ai-assistant-logging
   provides:
   - name: mcp-api
     properties:
@@ -62,7 +66,7 @@ modules:
       forwardAuthToken: true
       name: mcp-api
       url: ~{mcp-url}
-
+  - name: enterprise-ai-assistant-logging
   - name: enterprise-ai-assistant-auth
   - name: enterprise-ai-assistant-destination
   - name: enterprise-ai-assistant-html5-runtime
@@ -152,6 +156,11 @@ resources:
   parameters:
     service: html5-apps-repo
     service-plan: app-runtime
+- name: enterprise-ai-assistant-logging
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: application-logging
+    service-plan: lite
 parameters:
   deploy_mode: html5-repo
   enable-parallel-deployments: true

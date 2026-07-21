@@ -8,8 +8,8 @@ service ChatService @(path: '/chat') {
     entity PurchaseOrders     as projection on db.PurchaseOrders;
     entity PurchaseOrderItems as projection on db.PurchaseOrderItems;
 
-    action askAnalytics   (question : String) returns String;
-    action askDocument    (question : String) returns String;
+    action askAnalytics   (question : String, conversationID : UUID) returns String;
+    action askDocument    (question : String, conversationID : UUID) returns String;
     action uploadDocument (filename : String, content : String) returns String;
     action getSummary     () returns String;
 }

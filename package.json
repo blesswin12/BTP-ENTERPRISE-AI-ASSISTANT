@@ -3,14 +3,18 @@
   "version": "1.0.0",
   "dependencies": {
     "@cap-js/hana": "^2",
+    "@cap-js/postgres": "^2.3.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@sap/cds": "^9",
     "@sap/xssec": "^4",
     "axios": "^1.18.1",
+    "cf-nodejs-logging-support": "^8.0.0",
     "pdf-parse": "^2.4.5",
+    "pg": "^8.22.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@cap-js/cds-test": "^1.0.1",
     "@cap-js/sqlite": "^2.4",
     "@sap/cds-dk": "^9",
     "better-sqlite3": "^12.11.1",
@@ -24,7 +28,10 @@
     "watch-purchaseorders": "cds watch --open enterprise.ai.purchaseorders/index.html?sap-ui-xx-viewCache=false --livereload false",
     "undeploy": "cf undeploy enterprise-ai-assistant --delete-services --delete-service-keys --delete-service-brokers",
     "build": "rimraf resources mta_archives && mbt build --mtar archive",
-    "deploy": "cf deploy mta_archives/archive.mtar --retries 1"
+    "deploy": "cf deploy mta_archives/archive.mtar --retries 1",
+    "test": "npx cds test",
+    "test:watch": "npx cds test --watch",
+    "test:silent": "npx cds test --silent"
   },
   "private": true,
   "cds": {
@@ -36,6 +43,20 @@
         "kind": "sqlite",
         "credentials": {
           "url": "db.sqlite"
+        },
+        "[postgres]": {
+          "kind": "postgres",
+          "credentials": {
+            "url": null,
+            "hostname": "localhost",
+            "port": 1884,
+            "dbname": "MTnXsQJitywP",
+            "username": "abf8f046c652",
+            "password": "f7b38f4f322b222b3fda3eb05a9",
+            "ssl": {
+              "rejectUnauthorized": false
+            }
+          }
         }
       },
       "destinations": true,

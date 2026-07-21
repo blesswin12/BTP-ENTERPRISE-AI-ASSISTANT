@@ -19,6 +19,7 @@ entity Embeddings {
 
 entity ChatHistory {
   key ID           : UUID;
+      conversationID : UUID;
       userQuestion : LargeString not null;
       aiResponse   : LargeString not null;
       feature      : String(50);

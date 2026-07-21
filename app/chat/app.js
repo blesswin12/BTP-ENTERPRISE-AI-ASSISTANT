@@ -7,9 +7,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatForm = document.getElementById('chat-form');
   const chatInput = document.getElementById('chat-input');
   const btnSend = document.getElementById('btn-send');
+  const btnNewChat = document.getElementById('btn-new-chat');
   
   const modeAnalyticsBtn = document.getElementById('mode-analytics');
   const modeDocumentBtn = document.getElementById('mode-document');
+  function generateUUID() {
+    return (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'session-' + Math.random().toString(36).substring(2, 15) + '-' + Date.now().toString(36);
+  }
+
+  let conversationID = localStorage.getItem('procureai_conv_id');
+  if (!conversationID) {
+    conversationID = generateUUID();
+    localStorage.setItem('procureai_conv_id', conversationID);
+  }
   const chatModeSubtitle = document.getElementById('chat-mode-subtitle');
   
   const btnSummary = document.getElementById('btn-summary');
@@ -22,6 +34,27 @@ document.addEventListener('DOMContentLoaded', () => {
   // Application State
   let currentMode = 'analytics'; // 'analytics' | 'document'
   let isThinking = false;
+  loadChatHistory();
+
+  async function loadChatHistory() {
+    try {
+      const response = await fetch(`/chat/ChatHistory?$filter=conversationID eq ${conversationID}&$orderby=timestamp asc`);
+      if (!response.ok) return;
+      const data = await response.json();
+      const history = data.value || [];
+      if (history.length > 0) {
+        // Clear default initial message since we have real history
+        chatMessages.innerHTML = '';
+        history.forEach(item => {
+          addMessage('user', item.userQuestion);
+          addMessage('bot', item.aiResponse);
+        });
+        scrollToBottom();
+      }
+    } catch (err) {
+      console.error('Failed to load chat history:', err);
+    }
+  }
 
   // Configure Markdown Parser (Marked)
   marked.setOptions({
@@ -29,6 +62,22 @@ document.addEventListener('DOMContentLoaded', () => {
     gfm: true,
     headerIds: false,
     mangle: false
+  });
+
+  btnNewChat.addEventListener('click', () => {
+    if (isThinking) return;
+    conversationID = generateUUID();
+    localStorage.setItem('procureai_conv_id', conversationID);
+    chatMessages.innerHTML = `
+      <div class="message system">
+        <div class="message-avatar"><i class="fa-solid fa-robot"></i></div>
+        <div class="message-bubble">
+          <p>Welcome! I am your Enterprise Procurement Assistant. I can help you analyze purchase orders, summarize spend, or answer questions from uploaded policies and documents.</p>
+        </div>
+      </div>
+    `;
+    showToast('New Chat Session started', 'success');
+    scrollToBottom();
   });
 
   // Suggestion chips handler
@@ -257,7 +306,8 @@ document.addEventListener('DOMContentLoaded', () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          question: text
+          question: text,
+          conversationID: conversationID
         })
       });
 
@@ -284,7 +334,80 @@ document.addEventListener('DOMContentLoaded', () => {
   function addMessage(sender, text) {
     const isUser = sender === 'user';
     const avatarIcon = isUser ? 'fa-user' : 'fa-robot';
-    const htmlText = isUser ? escapeHTML(text) : marked.parse(text);
+    // const htmlText = isUser ? escapeHTML(text) : marked.parse(text);
+    let htmlText = '';
+    let confidenceHtml = '';
+    let citationsHtml = '';
+    if (isUser) {
+    htmlText = escapeHTML(text);
+    } else {
+    // Try to parse the response as JSON (new structure)
+    let parsed = null;
+    try {
+    parsed = JSON.parse(text);
+    } catch (e) {
+    // Not JSON - proceed as fallback raw text
+    }
+    if (parsed && typeof parsed === 'object') {
+    const answer = parsed.answer || '';
+    const confidence = parsed.confidence || 'Medium';
+    const confidenceScore = parsed.confidenceScore || 50;
+    const citations = parsed.citations || [];
+
+    htmlText = marked.parse(answer);
+
+    // Generate confidence badge class based on score / level
+    let badgeClass = 'conf-medium';
+    if (confidenceScore >= 80 || confidence.toLowerCase() === 'high') {
+    badgeClass = 'conf-high';
+    } else if (confidenceScore <= 40 || confidence.toLowerCase() === 'low') {
+    badgeClass = 'conf-low';
+    }
+
+    confidenceHtml = `
+    <div class="confidence-badge-container">
+    <span class="confidence-label">Confidence:</span>
+    <span class="confidence-badge ${badgeClass}">${confidence} (${confidenceScore}%)</span>
+    </div>
+    `;
+
+    // Generate citations list
+    if (citations && citations.length > 0) {
+    let citationsList = '';
+    citations.forEach(cit => {
+    if (cit.purchaseOrder) {
+    citationsList += `
+    <div class="citation-card">
+    <div class="citation-title"><i class="fa-solid fa-file-invoice"></i> ${escapeHTML(cit.purchaseOrder)}</div>
+    <div class="citation-meta">Supplier: ${escapeHTML(cit.supplier)} | Amount: ${escapeHTML(cit.totalAmount)}</div>
+    ${cit.reason ? `<div class="citation-reason">${escapeHTML(cit.reason)}</div>` : ''}
+    </div>
+    `;
+    } else if (cit.fileName) {
+    citationsList += `
+    <div class="citation-card">
+    <div class="citation-title"><i class="fa-solid fa-file-lines"></i> ${escapeHTML(cit.fileName)}</div>
+    ${cit.snippet ? `<div class="citation-snippet">"${escapeHTML(cit.snippet)}"</div>` : ''}
+    ${cit.reason ? `<div class="citation-reason">${escapeHTML(cit.reason)}</div>` : ''}
+    </div>
+    `;
+    }
+    });
+
+    citationsHtml = `
+    <div class="citations-container">
+    <div class="citations-header"><i class="fa-solid fa-bookmark"></i> Sources & Citations</div>
+    <div class="citations-list">${citationsList}</div>
+    </div>
+    `;
+    }
+    } else {
+    // Fallback for legacy text messages
+    htmlText = marked.parse(text);
+    }
+    }
+
+
 
     const messageHtml = `
       <div class="message ${sender}">
@@ -293,6 +416,8 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="message-bubble">
           ${htmlText}
+          ${confidenceHtml}
+          ${citationsHtml}
         </div>
       </div>
     `;
