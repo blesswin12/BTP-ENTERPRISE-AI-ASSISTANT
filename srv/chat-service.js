@@ -130,6 +130,31 @@ async function extractText(fileName, content) {
   }
 }
 
+
+async function publishAlert(eventType, message, severity = 'info') {
+  try{
+    const alertService = await cds.connect.to('alert-notification');
+
+  const payload = {
+    eventType: eventType,
+    eventTimestamp: Date.now(),
+    severity: severity,
+    category: 'Alert',
+    subject: subject,
+    body: body,
+    resource:{
+      resourceName: 'Enterprise AI Assistant',
+      resourceType: 'Application',
+    }
+  };
+
+  await alertService.send('POST','/',payload);
+  console.log('[Alert Notification] Published event: ${eventType} with severity: ${severity}');
+}catch(error){
+  console.error('[Alert Notification] Failed to publish event: ${eventType}. Error: ${error.message}');
+
+}
+}
 function parseLLMResponse(rawAnswer) {
   try {
     let clean = rawAnswer.trim();
@@ -159,6 +184,18 @@ function parseLLMResponse(rawAnswer) {
 module.exports = cds.service.impl(async function () {
   const { PurchaseOrders, ChatHistory, Documents } = this.entities
   const { Embeddings } = cds.entities('enterprise.ai')
+
+  this.before(['CREATE', 'UPDATE'], 'PurchaseOrders', (req) => {
+    const { orderDate, deliveryDate } = req.data;
+
+    if (
+        orderDate &&
+        deliveryDate &&
+        new Date(deliveryDate) < new Date(orderDate)
+    ) {
+        req.reject(400, 'Delivery date cannot be before order date');
+    }
+});
 
   // Feature 1 — Analytics Chat (queries PurchaseOrders)
   this.on('askAnalytics', async req => {

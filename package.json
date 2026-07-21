@@ -63,6 +63,13 @@
       "html5-repo": true
     }
   },
+  "html5-repo":true,
+  "alert-notification": {
+    "kind": "rest",
+    "credentials": {
+      "forwardAuthToken": false
+    }
+  },
   "workspaces": [
     "app/*"
   ],

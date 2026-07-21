@@ -56,6 +56,8 @@ entity PurchaseOrderItems {
 
 entity PurchaseOrders {
   key ID            : UUID;
+
+      @assert.format: '^.{5,20}$'
       purchaseOrder : String(20)  not null;
       supplier      : String(120) not null;
       buyer         : String(100);

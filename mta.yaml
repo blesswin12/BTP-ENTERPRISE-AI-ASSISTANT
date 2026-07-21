@@ -11,6 +11,7 @@ modules:
   - name: enterprise-ai-assistant-db
   - name: enterprise-ai-assistant-destination
   - name: enterprise-ai-assistant-logging
+  - name: enterprise-ai-assistant-alert-notification
   - name: mcp-api                            # ← injected MCP_SERVER_URL here
     properties:
       MCP_SERVER_URL: ~{mcp-url}
@@ -161,6 +162,11 @@ resources:
   parameters:
     service: application-logging
     service-plan: lite
+- name: enterprise-ai-assistant-alert-notification
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: alert-notification
+    service-plan: standard
 parameters:
   deploy_mode: html5-repo
   enable-parallel-deployments: true
