@@ -5,6 +5,8 @@
     "@cap-js/hana": "^2",
     "@cap-js/postgres": "^2.3.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@sap-cloud-sdk/http-client": "^3.26.0",
+    "@sap-cloud-sdk/resilience": "^3.26.0",
     "@sap/cds": "^9",
     "@sap/xssec": "^4",
     "axios": "^1.18.1",
@@ -27,7 +29,7 @@
     "mcp:start": "node mcp/server.js",
     "watch-purchaseorders": "cds watch --open enterprise.ai.purchaseorders/index.html?sap-ui-xx-viewCache=false --livereload false",
     "undeploy": "cf undeploy enterprise-ai-assistant --delete-services --delete-service-keys --delete-service-brokers",
-    "build": "rimraf resources mta_archives && mbt build --mtar archive",
+    "build": "rm -rf resources mta_archives && mbt build --mtar archive",
     "deploy": "cf deploy mta_archives/archive.mtar --retries 1",
     "test": "npx cds test",
     "test:watch": "npx cds test --watch",
@@ -37,7 +39,8 @@
   "cds": {
     "requires": {
       "[production]": {
-        "auth": "xsuaa"
+        "auth": "xsuaa",
+        "db": "hana"
       },
       "db": {
         "kind": "sqlite",
@@ -60,14 +63,16 @@
         }
       },
       "destinations": true,
-      "html5-repo": true
-    }
-  },
-  "html5-repo":true,
-  "alert-notification": {
-    "kind": "rest",
+      "html5-repo": true,
+      "alert-notification": {
+      "kind": "rest","[development]": {
+      "impl":"./srv/mock-alert-service.js"
+    },
     "credentials": {
       "forwardAuthToken": false
+    }
+  }
+  
     }
   },
   "workspaces": [

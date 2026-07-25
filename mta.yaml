@@ -22,6 +22,8 @@ modules:
   parameters:
     buildpack: nodejs_buildpack
     instances: 1
+    memory: 512M
+    disk-quota: 1024M
   build-parameters:
     builder: npm-ci
 
@@ -40,8 +42,8 @@ modules:
   parameters:
     buildpack: nodejs_buildpack
     instances: 1
-    memory: 256M
-    disk-quota: 256M
+    memory: 512M
+    disk-quota: 1024M
   build-parameters:
     builder: npm-ci
 - name: enterprise-ai-assistant-db-deployer
@@ -51,6 +53,7 @@ modules:
   - name: enterprise-ai-assistant-db
   parameters:
     buildpack: nodejs_buildpack
+    memory: 128M
 - name: enterprise-ai-assistant
   type: approuter.nodejs
   path: app/router
@@ -79,7 +82,7 @@ modules:
   parameters:
     disk-quota: 256M
     keep-existing-routes: true
-    memory: 256M
+    memory: 128M
 - name: enterprise-ai-assistant-app-deployer
   type: com.sap.application.content
   path: gen
@@ -160,19 +163,18 @@ resources:
 - name: enterprise-ai-assistant-logging
   type: org.cloudfoundry.managed-service
   parameters:
-    service: application-logging
+    service: application-logs
     service-plan: lite
 - name: enterprise-ai-assistant-alert-notification
-  type: org.cloudfoundry.managed-service
+  type: org.cloudfoundry.existing-service
   parameters:
-    service: alert-notification
-    service-plan: standard
+    service-name: EnterpriseAI-Alert
 parameters:
   deploy_mode: html5-repo
-  enable-parallel-deployments: true
+  enable-parallel-deployments: false
 build-parameters:
   before-all:
   - builder: custom
     commands:
-    - npm ci
     - npx cds build --production
+    - mkdir -p gen/db

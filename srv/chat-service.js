@@ -131,7 +131,7 @@ async function extractText(fileName, content) {
 }
 
 
-async function publishAlert(eventType, message, severity = 'info') {
+async function publishAlert(eventType,subject, body, severity = 'INFO') {
   try{
     const alertService = await cds.connect.to('alert-notification');
 
@@ -139,19 +139,19 @@ async function publishAlert(eventType, message, severity = 'info') {
     eventType: eventType,
     eventTimestamp: Date.now(),
     severity: severity,
-    category: 'Alert',
+    category: 'ALERT',
     subject: subject,
     body: body,
     resource:{
-      resourceName: 'Enterprise AI Assistant',
+      resourceName: 'EnterpriseAIAssistant',
       resourceType: 'Application',
     }
   };
 
   await alertService.send('POST','/',payload);
-  console.log('[Alert Notification] Published event: ${eventType} with severity: ${severity}');
+  console.log(`[Alert Notification] Published event: ${eventType} with severity: ${severity}`);
 }catch(error){
-  console.error('[Alert Notification] Failed to publish event: ${eventType}. Error: ${error.message}');
+  console.error(`[Alert Notification] Failed to publish event: ${eventType}. Error: ${error.message}`);
 
 }
 }
@@ -184,6 +184,29 @@ function parseLLMResponse(rawAnswer) {
 module.exports = cds.service.impl(async function () {
   const { PurchaseOrders, ChatHistory, Documents } = this.entities
   const { Embeddings } = cds.entities('enterprise.ai')
+
+  this.after(['CREATE','SAVE'], 'PurchaseOrders', async (po) => {
+        if (po.totalAmount > 100000) {
+          await publishAlert(
+            'PurchaseOrder.HighSpendCreated',
+            `High spend purchase order ${po.purchaseOrder || po.ID} created`,
+            `A purchase order ${po.purchaseOrder || po.ID} for supplier "${po.supplier || 'N/A'}" was created with total amount ${po.totalAmount} ${po.currency || ''}. Review
+  required.`,
+            'INFO'
+          );
+        } 
+  });
+
+  this.after('UPDATE', 'PurchaseOrders', async (po) => {
+    if(po.status === 'Rejected'){
+      await publishAlert(
+            'PurchaseOrder.Rejected',
+            `Purchase Order ${po.purchaseOrder || po.ID} Rejected`,
+            `The purchase order ${po.purchaseOrder || po.ID} has been rejected by buyer ${po.buyer || 'manager'}.`,
+            'WARNING'
+          );
+        }   
+  });
 
   this.before(['CREATE', 'UPDATE'], 'PurchaseOrders', (req) => {
     const { orderDate, deliveryDate } = req.data;
@@ -364,6 +387,13 @@ module.exports = cds.service.impl(async function () {
     try {
       extractedText = await extractText(fileName, content)
     } catch (error) {
+
+      await publishAlert(
+            'AIDocument.ProcessingFailed',
+            `Failed to parse document: ${fileName}`,
+            `An error occurred while parsing uploaded file "${fileName}". Error: ${error.message}`,
+            'ERROR'
+          );
       req.reject(400, `Failed to process document: ${error.message}`)
     }
 

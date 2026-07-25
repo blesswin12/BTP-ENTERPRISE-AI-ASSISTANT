@@ -4,7 +4,8 @@ service ChatService @(path: '/chat') {
     @readonly entity ChatHistory      as projection on db.ChatHistory;
     @readonly entity Documents        as projection on db.Documents;
 
-    // @odata.draft.enabled
+    @odata.draft.enabled
+    @odata.draft.bypass
     entity PurchaseOrders     as projection on db.PurchaseOrders;
     entity PurchaseOrderItems as projection on db.PurchaseOrderItems;
 
