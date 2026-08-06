@@ -103,8 +103,9 @@ describe('ChatService — Purchase Orders', () => {
       deliveryDate : '2026-08-01'
     })
 
+    const isActive = created.IsActiveEntity !== undefined ? created.IsActiveEntity : false
     const res = await PATCH(
-      `/chat/PurchaseOrders(${created.ID})`,
+      `/chat/PurchaseOrders(ID=${created.ID},IsActiveEntity=${isActive})`,
       { status: 'Approved' }
     )
     expect(res.status).to.equal(200, `Got status ${res.status}. Data: ${JSON.stringify(res.data)}`)

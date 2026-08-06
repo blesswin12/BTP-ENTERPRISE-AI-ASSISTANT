@@ -116,6 +116,20 @@ async function main() {
     })
   })
 
+  // Root endpoint
+  app.get('/', (req, res) => {
+    res.json({
+      name: 'sap-procurement-mcp',
+      status: 'running',
+      endpoints: {
+        sse: '/mcp',
+        messages: '/mcp/messages',
+        health: '/health'
+      },
+      timestamp: new Date().toISOString()
+    })
+  })
+
   const port = process.env.PORT || 3000
   app.listen(port, () => {
     console.log(`SAP Procurement MCP server running on port ${port}`)

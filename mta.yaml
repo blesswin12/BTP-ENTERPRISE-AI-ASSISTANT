@@ -12,6 +12,8 @@ modules:
   - name: enterprise-ai-assistant-destination
   - name: enterprise-ai-assistant-logging
   - name: enterprise-ai-assistant-alert-notification
+  - name: enterprise-ai-assistant-jobscheduler
+  - name: enterprise-ai-assistant-credstore
   - name: mcp-api                            # ← injected MCP_SERVER_URL here
     properties:
       MCP_SERVER_URL: ~{mcp-url}
@@ -165,6 +167,15 @@ resources:
   parameters:
     service: application-logs
     service-plan: lite
+- name: enterprise-ai-assistant-jobscheduler
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: jobscheduler
+    service-plan: free
+- name: enterprise-ai-assistant-credstore
+  type: org.cloudfoundry.existing-service
+  parameters:
+    service-name: Cred-Store
 - name: enterprise-ai-assistant-alert-notification
   type: org.cloudfoundry.existing-service
   parameters:
@@ -178,3 +189,5 @@ build-parameters:
     commands:
     - npx cds build --production
     - mkdir -p gen/db
+    - mkdir -p gen/srv/app
+    - cp -r app/chat gen/srv/app/chat

@@ -1,0 +1,13 @@
+POST /chat/PurchaseOrders
+    Content-Type: application/json
+    
+    {
+      "purchaseOrder": "PO-TEST-999",
+      "supplier": "Acme Industrial Supplies",
+      "buyer": "Blesswin",
+      "orderDate": "2026-07-22",
+      "deliveryDate": "2026-08-01",
+      "totalAmount": 150000,
+      "totalAmount": 150000,
+      "currency": "INR"
+    }

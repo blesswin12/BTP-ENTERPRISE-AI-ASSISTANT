@@ -1,3 +1,6 @@
+using from '@sap/cds-mtxs/db/extensions';
+using from '@sap/cds-mtxs/srv/bootstrap';
+
 using {enterprise.ai as db} from '../db/schema';
 
 service ChatService @(path: '/chat') {
@@ -13,6 +16,7 @@ service ChatService @(path: '/chat') {
     action askDocument    (question : String, conversationID : UUID) returns String;
     action uploadDocument (filename : String, content : String) returns String;
     action getSummary     () returns String;
+    action checkOverdueOrders() returns String;
 }
 
 annotate ChatService.PurchaseOrders with {
@@ -46,9 +50,6 @@ annotate ChatService.PurchaseOrders with {
         }
     );
 }
-
-
-
 
 annotate ChatService.PurchaseOrders with @(
     UI.HeaderInfo:{

@@ -1,4 +1,6 @@
 {
+  "welcomeFile": "/enterpriseaipurchaseorders/index.html",
+  "authenticationMethod": "route",
   "routes": [
     {
       "source": "^/mcp(.*)$",
@@ -8,11 +10,17 @@
       "authenticationType": "xsuaa"
     },
     {
+      "source": "^/chat/(.*)$",
+      "target": "/chat/$1",
+      "destination": "srv-api",
+      "csrfProtection": false,
+      "authenticationType": "xsuaa"
+    },
+    {
       "source": "^/(.*)$",
       "target": "$1",
       "destination": "srv-api",
       "csrfProtection": true
     }
-  ],
-  "welcomeFile": "/enterpriseaipurchaseorders"
+  ]
 }

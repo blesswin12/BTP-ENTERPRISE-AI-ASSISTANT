@@ -131,30 +131,52 @@ async function extractText(fileName, content) {
 }
 
 
-async function publishAlert(eventType,subject, body, severity = 'INFO') {
-  try{
-    const alertService = await cds.connect.to('alert-notification');
+// async function publishAlert(eventType,subject, body, severity = 'INFO') {
+//   try{
+//     const alertService = await cds.connect.to('alert-notification');
 
-  const payload = {
-    eventType: eventType,
-    eventTimestamp: Date.now(),
-    severity: severity,
-    category: 'ALERT',
-    subject: subject,
-    body: body,
-    resource:{
-      resourceName: 'EnterpriseAIAssistant',
-      resourceType: 'Application',
+//     const payload = {
+//       eventType: eventType,
+//       eventTimestamp: Math.floor(Date.now() / 1000),
+//       severity: severity,
+//       category: 'ALERT',
+//       subject: subject,
+//       body: body,
+//       resource:{
+//         resourceName: 'EnterpriseAIAssistant',
+//         resourceType: 'Application',
+//       }
+//     };
+
+//   await alertService.send('POST','/',payload);
+//   console.log(`[Alert Notification] Published event: ${eventType} with severity: ${severity}`);
+// }catch(error){
+//   console.error(`[Alert Notification] Failed to publish event: ${eventType}. Error: ${error.message}`);
+
+// }
+// }
+
+async function publishAlert(po) {
+      try {
+        const notifications = await cds.connect.to('notifications');
+    
+        await notifications.notify('PurchaseOrderHighSpendCreated', {
+          recipients: ['manager@company.com', 'blesswinsj@gmail.com'],
+          data: {
+            poID: po.purchaseOrder || po.ID,
+            supplier: po.supplier || 'N/A',
+            amount: po.totalAmount,
+            currency: po.currency || 'INR'
+          }
+        });
+    
+        console.log(`[CALESI Notification] High spend alert sent for PO: ${po.purchaseOrder || po.ID}`);
+      } catch (error) {
+        console.error(`[CALESI Notification Error] ${error.message}`);
+      }
     }
-  };
 
-  await alertService.send('POST','/',payload);
-  console.log(`[Alert Notification] Published event: ${eventType} with severity: ${severity}`);
-}catch(error){
-  console.error(`[Alert Notification] Failed to publish event: ${eventType}. Error: ${error.message}`);
 
-}
-}
 function parseLLMResponse(rawAnswer) {
   try {
     let clean = rawAnswer.trim();
@@ -185,31 +207,58 @@ module.exports = cds.service.impl(async function () {
   const { PurchaseOrders, ChatHistory, Documents } = this.entities
   const { Embeddings } = cds.entities('enterprise.ai')
 
+  // this.after(['CREATE','SAVE'], 'PurchaseOrders', async (po) => {
+  //       if (po.totalAmount > 100000) {
+  //         await publishAlert(
+  //           'PurchaseOrder.HighSpendCreated',
+  //           `High spend purchase order ${po.purchaseOrder || po.ID} created`,
+  //           `A purchase order ${po.purchaseOrder || po.ID} for supplier "${po.supplier || 'N/A'}" was created with total amount ${po.totalAmount} ${po.currency || ''}. Review
+  // required.`,
+  //           'INFO'
+  //         );
+  //       } 
+  // });
+
   this.after(['CREATE','SAVE'], 'PurchaseOrders', async (po) => {
         if (po.totalAmount > 100000) {
-          await publishAlert(
-            'PurchaseOrder.HighSpendCreated',
-            `High spend purchase order ${po.purchaseOrder || po.ID} created`,
-            `A purchase order ${po.purchaseOrder || po.ID} for supplier "${po.supplier || 'N/A'}" was created with total amount ${po.totalAmount} ${po.currency || ''}. Review
-  required.`,
-            'INFO'
-          );
+          await publishAlert(po);
         } 
   });
+  // this.after('UPDATE', 'PurchaseOrders', async (po) => {
+  //   if(po.status === 'Rejected'){
+  //     await publishAlert(
+  //           'PurchaseOrder.Rejected',
+  //           `Purchase Order ${po.purchaseOrder || po.ID} Rejected`,
+  //           `The purchase order ${po.purchaseOrder || po.ID} has been rejected by buyer ${po.buyer || 'manager'}.`,
+  //           'WARNING'
+  //         );
+  //       }   
+  // });
 
   this.after('UPDATE', 'PurchaseOrders', async (po) => {
-    if(po.status === 'Rejected'){
-      await publishAlert(
-            'PurchaseOrder.Rejected',
-            `Purchase Order ${po.purchaseOrder || po.ID} Rejected`,
-            `The purchase order ${po.purchaseOrder || po.ID} has been rejected by buyer ${po.buyer || 'manager'}.`,
-            'WARNING'
-          );
-        }   
+    if (po.status === 'Rejected') {
+      try {
+        const notifications = await cds.connect.to('notifications');
+        await notifications.notify('PurchaseOrderRejected', {
+          recipients: ['buyer@company.com', 'blesswinsj@gmail.com'],
+          data: {
+            poID: po.purchaseOrder || po.ID,
+            buyer: po.buyer || 'manager'
+          }
+        });
+        console.log(`[CALESI Notification] Rejection alert sent for PO: ${po.purchaseOrder || po.ID}`);
+      } catch (error) {
+        console.error(`[CALESI Notification Error] ${error.message}`);
+      }
+    }   
   });
 
-  this.before(['CREATE', 'UPDATE'], 'PurchaseOrders', (req) => {
-    const { orderDate, deliveryDate } = req.data;
+  this.before(['CREATE', 'UPDATE', 'NEW', 'SAVE'], ['PurchaseOrders', 'PurchaseOrders.drafts'], (req) => {
+    const { purchaseOrder, orderDate, deliveryDate } = req.data;
+
+    if (purchaseOrder && purchaseOrder.length < 5) {
+      req.reject(400, 'Purchase Order number must be at least 5 characters long');
+    }
 
     if (
         orderDate &&
@@ -218,7 +267,7 @@ module.exports = cds.service.impl(async function () {
     ) {
         req.reject(400, 'Delivery date cannot be before order date');
     }
-});
+  });
 
   // Feature 1 — Analytics Chat (queries PurchaseOrders)
   this.on('askAnalytics', async req => {
@@ -368,71 +417,71 @@ module.exports = cds.service.impl(async function () {
     return finalAnswer
   })
 
+
+
+
+
+
+  //////////////////////////////////////////////////
   // Feature 3 — Upload Document for RAG
   this.on('uploadDocument', async req => {
     const { filename, content } = req.data || {}
-    if (!filename || typeof filename !== 'string' || !filename.trim()) {
-      req.reject(400, 'filename is required')
-    }
-    if (!content || typeof content !== 'string') {
-      req.reject(400, 'content is required')
-    }
+      if (!filename || typeof filename !== 'string' || !filename.trim()) {
+        return req.reject(400, 'filename is required')
+      }
+      if (!content || typeof content !== 'string') {
+        return req.reject(400, 'content is required')
+      }
 
-    const tx = cds.tx(req)
-    const docID = cds.utils.uuid()
-    const fileName = filename.trim()
-    const isPDF = fileName.toLowerCase().endsWith('.pdf')
+      const tx = cds.tx(req)
+      const docID = cds.utils.uuid()
+      const fileName = filename.trim()
+      const isPDF = fileName.toLowerCase().endsWith('.pdf')
 
-    let extractedText
-    try {
-      extractedText = await extractText(fileName, content)
-    } catch (error) {
+      let extractedText
+      try {
+        extractedText = await extractText(fileName, content)
+      } catch (error) {
+        console.error(`[Upload Document Error] ${error.message}`);
+        return req.reject(400, `Failed to process document: ${error.message}`)
+      }
 
-      await publishAlert(
-            'AIDocument.ProcessingFailed',
-            `Failed to parse document: ${fileName}`,
-            `An error occurred while parsing uploaded file "${fileName}". Error: ${error.message}`,
-            'ERROR'
-          );
-      req.reject(400, `Failed to process document: ${error.message}`)
-    }
+      const cleanText = extractedText
+        .replace(/\r\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
 
-    const cleanText = extractedText
-      .replace(/\r\n/g, '\n')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
+      await tx.run(INSERT.into(Documents).entries({
+        ID: docID,
+        fileName,
+        content: cleanText,
+        uploadedAt: toTimestamp(),
+        fileType: isPDF ? 'pdf' : 'text'
+      }))
 
-    await tx.run(INSERT.into(Documents).entries({
-      ID: docID,
-      fileName,
-      content: cleanText,
-      uploadedAt: toTimestamp(),
-      fileType: isPDF ? 'pdf' : 'text'
-    }))
+      const chunkSize = 500
+      const overlap = 50
+      const chunks = []
+      for (let i = 0; i < cleanText.length; i += chunkSize - overlap) {
+        const chunk = cleanText.substring(i, i + chunkSize)
+        if (chunk.trim()) chunks.push(chunk)
+      }
 
-    const chunkSize = 500
-    const overlap = 50
-    const chunks = []
-    for (let i = 0; i < cleanText.length; i += chunkSize - overlap) {
-      const chunk = cleanText.substring(i, i + chunkSize)
-      if (chunk.trim()) chunks.push(chunk)
-    }
+      const chunkEntries=[];
+      for(let index=0;index<chunks.length;index++){
+        const chunkText=chunks[index]
+        const vector =await generateEmbedding(chunkText)
+        chunkEntries.push({
+          ID: cds.utils.uuid(),
+          documentID: docID,
+          chunkText: chunkText,
+          chunkIndex: index,
+          embedding: JSON.stringify(vector)
+        })
+      }
+      await tx.run(INSERT.into(Embeddings).entries(chunkEntries))
 
-    const chunkEntries=[];
-    for(let index=0;index<chunks.length;index++){
-      const chunkText=chunks[index]
-      const vector =await generateEmbedding(chunkText)
-      chunkEntries.push({
-        ID: cds.utils.uuid(),
-        documentID: docID,
-        chunkText: chunkText,
-        chunkIndex: index,
-        embedding: JSON.stringify(vector)
-      })
-    }
-    await tx.run(INSERT.into(Embeddings).entries(chunkEntries))
-
-    return `Document "${fileName}" uploaded successfully. ${chunks.length} chunks stored with semantic embeddings.`
+      return `Document "${fileName}" uploaded successfully. ${chunks.length} chunks stored with semantic embeddings.`
   })
 
   // Feature 4 — Executive Summary (queries PurchaseOrders)
@@ -466,4 +515,31 @@ Keep it under 200 words. Use bullet points.`
 
     return answer
   })
+
+  this.on('checkOverdueOrders', async req => {
+    const tx = cds.tx(req);
+    const today = new Date().toISOString().split('T')[0];
+
+    const overdueOrders = await tx.run(
+      SELECT.from(PurchaseOrders)
+        .where(`deliveryDate < '${today}' and status != 'Rejected'`)
+    );
+
+    console.log(`[Job Scheduler] Found ${overdueOrders.length} overdue orders.`);
+
+    const notifications = await cds.connect.to('notifications');
+    for (const po of overdueOrders) {
+      await notifications.notify('PurchaseOrderOverdue', {
+        recipients: ['buyer@company.com', 'blesswinsj@gmail.com'],
+        data: {
+          poID: po.purchaseOrder || po.ID,
+          supplier: po.supplier,
+          deliveryDate: po.deliveryDate
+        }
+      });
+    }
+    return `Processed ${overdueOrders.length} overdue orders successfully.`;
+  });
 })
+
+

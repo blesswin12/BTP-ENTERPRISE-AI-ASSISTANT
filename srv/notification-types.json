@@ -1,0 +1,26 @@
+[
+    {
+        "NotificationTypeKey": "PurchaseOrderHighSpendCreated",
+        "NotificationTypeVersion": "1",
+        "Templates": [
+            {
+                "Language": "en",
+                "TemplatePublicHeader": "High Spend Purchase Order Created",
+                "TemplateSensitiveBody": "A purchase order with high spend {{poID}} ({{amount}} {{currency}}) for supplier {{supplier}} has been created. Please review.",
+                "TemplateGroupedHeader": "High Spend Purchase Orders"
+            }
+        ]
+    },
+    {
+        "NotificationTypeKey": "PurchaseOrderRejected",
+        "NotificationTypeVersion": "1",
+        "Templates": [
+            {
+                "Language": "en",
+                "TemplatePublicHeader": "Purchase Order Rejected",
+                "TemplateSensitiveBody": "Purchase Order {{poID}} has been rejected by buyer {{buyer}}.",
+                "TemplateGroupedHeader": "Purchase Order Rejections"
+            }
+        ]
+    }
+]

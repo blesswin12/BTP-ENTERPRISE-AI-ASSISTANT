@@ -1,11 +1,12 @@
 namespace enterprise.ai;
-
+using { Attachments } from '@cap-js/attachments';
 entity Documents {
   key ID         : UUID;
       fileName   : String(200) not null;
-      content    : LargeString not null;
+      content    : LargeString;
       uploadedAt : DateTime;
       fileType   : String(50);
+      attachments : Composition of many Attachments;
 }
 
 entity Embeddings {
