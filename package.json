@@ -41,9 +41,17 @@
     "test:silent": "npx cds test --silent"
   },
   "private": true,
-  "cds": {
-    "requires": {
-      "multitenancy": true,
+   "cds": {
+        "requires": {
+          "messaging": {
+            "[production]": {
+              "kind": "enterprise-messaging-shared",
+              "format": "cloudevents"
+            },
+            "[development]": {
+              "kind": "file-based-messaging"
+            }
+          },
       "toggles": true,
       "extensibility": true,
       "auth": "mocked",
@@ -72,7 +80,8 @@
         "outboxed": true
       }
     }
-    "workspaces": [
+  },
+  "workspaces": [
     "app/*"
   ],
   "sapux": [

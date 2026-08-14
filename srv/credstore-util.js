@@ -135,6 +135,7 @@ async function getCredential(name, namespace = 'default') {
     }
 }
 
+
 module.exports = {
     getCredential
 };

@@ -1,2 +1,31 @@
 {
+    "files.autoSave": "afterDelay",
+    "explorer.confirmDelete": false,
+    "workbench.colorTheme": "Dark Modern",
+
+    "workbench.colorCustomizations": {
+        "terminal.background": "#0d0221",
+        "terminal.foreground": "#00ff9f",
+
+        "terminalCursor.background": "#0d0221",
+        "terminalCursor.foreground": "#ff00ff",
+
+        "terminal.ansiBlack": "#0d0221",
+        "terminal.ansiRed": "#ff2079",
+        "terminal.ansiGreen": "#00ff9f",
+        "terminal.ansiYellow": "#fcee09",
+        "terminal.ansiBlue": "#00c3ff",
+        "terminal.ansiMagenta": "#ff00ff",
+        "terminal.ansiCyan": "#00fff9",
+        "terminal.ansiWhite": "#ffffff",
+
+        "terminal.ansiBrightBlack": "#575279",
+        "terminal.ansiBrightRed": "#ff5c8a",
+        "terminal.ansiBrightGreen": "#7dff8f",
+        "terminal.ansiBrightYellow": "#fffb96",
+        "terminal.ansiBrightBlue": "#7ee8ff",
+        "terminal.ansiBrightMagenta": "#ff8cff",
+        "terminal.ansiBrightCyan": "#a0fff8",
+        "terminal.ansiBrightWhite": "#ffffff"
+    }
 }

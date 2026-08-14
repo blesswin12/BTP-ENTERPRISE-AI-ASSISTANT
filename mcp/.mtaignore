@@ -1,0 +1,4 @@
+node_modules/
+*.log
+server.js.orig
+server.js.rej

@@ -7,6 +7,7 @@ modules:
   type: nodejs
   path: gen/srv
   requires:
+  - name: enterprise-ai-assistant-event-mesh
   - name: enterprise-ai-assistant-auth
   - name: enterprise-ai-assistant-db
   - name: enterprise-ai-assistant-destination
@@ -14,6 +15,7 @@ modules:
   - name: enterprise-ai-assistant-alert-notification
   - name: enterprise-ai-assistant-jobscheduler
   - name: enterprise-ai-assistant-credstore
+  - name: enterprise-ai-assistant-autoscaler
   - name: mcp-api                            # ← injected MCP_SERVER_URL here
     properties:
       MCP_SERVER_URL: ~{mcp-url}
@@ -114,6 +116,27 @@ modules:
     - npm run build:cf
     supported-platforms: []
 resources:
+- name: enterprise-ai-assistant-event-mesh
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: enterprise-messaging
+    service-plan: default
+    config:
+      options:
+        management: true
+      rules:
+        topicRules:
+          inboundRules:
+            - "sap/s4/beh/purchaseorder/v1/PurchaseOrder/*"
+          outboundRules:
+            - "enterprise/ai/po/*"
+      queueDefinitions:
+        - name: "enterprise/ai/po_sync_queue"
+          maxQueueSizeInBytes: 104857600
+      subscriptions:
+        - queue: "enterprise/ai/po_sync_queue"
+          topic: "sap/s4/beh/purchaseorder/v1/PurchaseOrder/*"
+    
 - name: enterprise-ai-assistant-auth
   type: org.cloudfoundry.managed-service
   parameters:
@@ -176,6 +199,39 @@ resources:
   type: org.cloudfoundry.existing-service
   parameters:
     service-name: Cred-Store
+- name: enterprise-ai-assistant-autoscaler
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: autoscaler
+    service-plan: standard
+    config:
+      instance_min_count: 1
+      instance_max_count: 5
+      scaling_rules:
+        - metric_type: memoryutil
+          stat_window_secs: 300
+          breach_duration_secs: 300
+          threshold: 80
+          operator: ">="
+          adjustment: "+1"
+        - metric_type: memoryutil
+          stat_window_secs: 300
+          breach_duration_secs: 300
+          threshold: 20
+          operator: "<="
+          adjustment: "-1"
+        - metric_type: cpu
+          stat_window_secs: 300
+          breach_duration_secs: 300
+          threshold: 80
+          operator: ">="
+          adjustment: "+1"
+        - metric_type: cpu
+          stat_window_secs: 300
+          breach_duration_secs: 300
+          threshold: 20
+          operator: "<="
+          adjustment: "-1"
 - name: enterprise-ai-assistant-alert-notification
   type: org.cloudfoundry.existing-service
   parameters:

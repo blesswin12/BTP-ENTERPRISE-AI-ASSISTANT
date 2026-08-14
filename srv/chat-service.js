@@ -4,15 +4,20 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY
 const GROQ_API_URL = process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions'
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
 const EMBEDDING_API_URL = process.env.EMBEDDING_API_URL || 'https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2';
+const { getRequestContext, logWithContext } = require('./utils/context-helper');
+
 
 async function callGroq(systemPrompt, userMessage, history = []) {
   if (!GROQ_API_KEY) {
     throw new Error('GROQ_API_KEY is not configured')
   }
 
-  if (typeof fetch !== 'function') {
-    throw new Error('Global fetch is not available. Use Node.js 18 or newer.')
-  }
+  const ctx = getRequestContext();
+  logWithContext('info', `Sending AI prompt to Groq (Model: ${GROQ_MODEL})`, console);
+
+  // if (typeof fetch !== 'function') {
+  //   throw new Error('Global fetch is not available. Use Node.js 18 or newer.')
+  // }
 
   const messages = [
     { role: 'system', content: systemPrompt }
@@ -29,7 +34,8 @@ async function callGroq(systemPrompt, userMessage, history = []) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${GROQ_API_KEY}`
+      Authorization: `Bearer ${GROQ_API_KEY}`,
+      'X-Correlation-ID': ctx.correlationId
     },
     body: JSON.stringify({
       model: GROQ_MODEL,
@@ -40,17 +46,13 @@ async function callGroq(systemPrompt, userMessage, history = []) {
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Groq API request failed with ${response.status}: ${errorText}`)
+    const errorText = await response.text();
+    logWithContext('error', `Groq API failed: ${errorText}`);
+    throw new Error(`Groq API request failed with ${response.status}: ${errorText}`);
   }
 
   const data = await response.json()
-  const answer = data?.choices?.[0]?.message?.content
-  if (!answer) {
-    throw new Error('Groq API response did not contain an answer')
-  }
-
-  return answer
+  return data?.choices?.[0]?.message?.content
 }
 
 async function generateEmbedding(text) {
@@ -117,7 +119,7 @@ async function extractText(fileName, content) {
   }
   try {
     const buffer = Buffer.from(content, 'base64')
-    const { PDFParse } = require('pdf-parse')
+    const { PDFParse } = await import('pdf-parse')
     const parser = new PDFParse({ data: buffer })
     const result = await parser.getText()
 
@@ -126,6 +128,7 @@ async function extractText(fileName, content) {
     }
     return result.text
   } catch (error) {
+    logWithContext('error', `Failed to extract text from PDF: ${error.message}`, console);
     throw new Error(`Failed to extract text from PDF: ${error.message}`)
   }
 }
@@ -207,6 +210,32 @@ module.exports = cds.service.impl(async function () {
   const { PurchaseOrders, ChatHistory, Documents } = this.entities
   const { Embeddings } = cds.entities('enterprise.ai')
 
+  const messaging = await cds.connect.to('messaging');
+
+  messaging.on('enterprise/ai/po/Created', async (msg) => {
+    console.log(`[Event Mesh Received] 'enterprise/ai/po/Created' event received:`, msg.data);
+    const {purchaseOrder, supplier, totalAmount, currency} = msg.data||{};
+    if(!purchaseOrder || !supplier || !totalAmount){
+      console.warn('[Event Mesh Warning] Missing required fields in event data. Skipping processing.');
+      return;
+    }
+    try{
+      await UPSERT.into(PurchaseOrders).entries({
+        purchaseOrder,
+        supplier, 
+        totalAmount,
+        currency: currency || 'USD',
+        status: 'Pending',  
+        orderDate: new Date().toISOString().split('T')[0],
+        deliveryDate: new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0] 
+      });
+      console.log(`[Event Mesh Processing] Purchase Order ${purchaseOrder} upserted successfully.`);
+
+    }catch(error){  
+      console.error(`[Event Mesh Error] Failed to upsert Purchase Order ${purchaseOrder}. Error: ${error.message}`);
+    }
+  });
+
   // this.after(['CREATE','SAVE'], 'PurchaseOrders', async (po) => {
   //       if (po.totalAmount > 100000) {
   //         await publishAlert(
@@ -223,6 +252,25 @@ module.exports = cds.service.impl(async function () {
         if (po.totalAmount > 100000) {
           await publishAlert(po);
         } 
+  });
+
+    this.after(['CREATE', 'SAVE'], 'PurchaseOrders', async (po) => {
+    try {
+      await messaging.emit('enterprise/ai/po/Created', {
+        purchaseOrder: po.purchaseOrder || po.ID,
+        supplier: po.supplier,
+        buyer: po.buyer,
+        totalAmount: po.totalAmount,
+        currency: po.currency || 'USD',
+        status: po.status || 'Pending',
+        orderDate: po.orderDate,
+        deliveryDate: po.deliveryDate,
+        timestamp: new Date().toISOString()
+      });
+      console.log(`[Event Mesh Publish] Sent 'enterprise/ai/po/Created' for PO: ${po.purchaseOrder || po.ID}`);
+    } catch (err) {
+      console.error(`[Event Mesh Publish Error] ${err.message}`);
+    }
   });
   // this.after('UPDATE', 'PurchaseOrders', async (po) => {
   //   if(po.status === 'Rejected'){
@@ -253,6 +301,24 @@ module.exports = cds.service.impl(async function () {
     }   
   });
 
+        // Emit event when a Purchase Order status is updated
+  this.after('UPDATE', 'PurchaseOrders', async (po) => {
+    try {
+      await messaging.emit('enterprise/ai/po/Updated', {
+        purchaseOrder: po.purchaseOrder || po.ID,
+        supplier: po.supplier,
+        buyer: po.buyer,
+        totalAmount: po.totalAmount,
+        currency: po.currency || 'USD',
+        status: po.status,
+        timestamp: new Date().toISOString()
+      });
+      console.log(`[Event Mesh Publish] Sent 'enterprise/ai/po/Updated' for PO: ${po.purchaseOrder || po.ID}`);
+    } catch (err) {
+      console.error(`[Event Mesh Publish Error] ${err.message}`);
+    }
+  });
+
   this.before(['CREATE', 'UPDATE', 'NEW', 'SAVE'], ['PurchaseOrders', 'PurchaseOrders.drafts'], (req) => {
     const { purchaseOrder, orderDate, deliveryDate } = req.data;
 
@@ -273,7 +339,7 @@ module.exports = cds.service.impl(async function () {
   this.on('askAnalytics', async req => {
     const question = getQuestion(req)
     const conversationID = req.data?.conversationID || cds.utils.uuid()
-    const tx = cds.tx(req)
+    const tx = cds.tx(req)    
 
     let history = []
     if (conversationID) {
@@ -484,6 +550,8 @@ module.exports = cds.service.impl(async function () {
       return `Document "${fileName}" uploaded successfully. ${chunks.length} chunks stored with semantic embeddings.`
   })
 
+
+
   // Feature 4 — Executive Summary (queries PurchaseOrders)
   this.on('getSummary', async req => {
     const tx = cds.tx(req)
@@ -540,6 +608,27 @@ Keep it under 200 words. Use bullet points.`
     }
     return `Processed ${overdueOrders.length} overdue orders successfully.`;
   });
+
+
+  this.on('ingestDocument', async req => {
+    const {documentText, documentName} = req.data;
+
+    req.reply({ status: 'Accepted', message: `Document "${documentName}" ingestion started.` });
+
+    cds.spawn({tenant: cds.context.tenant, user: cds.context.user}).run(async tx => {
+
+      const vector = await generateEmbedding(documentText);
+      await tx.run(INSERT.into(Embeddings).entries({
+        ID: cds.utils.uuid(),
+        documentID: cds.utils.uuid(),
+        chunkText: documentText,
+        chunkIndex: 0,
+        embedding: JSON.stringify(vector),
+        fileName: documentName
+      }));
+      console.log(`[Background Task] Document "${documentName}" ingested successfully.`);
+  });
 })
 
 
+});
