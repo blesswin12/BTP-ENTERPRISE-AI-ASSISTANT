@@ -213,14 +213,17 @@ module.exports = cds.service.impl(async function () {
   const messaging = await cds.connect.to('messaging');
 
   messaging.on('enterprise/ai/po/Created', async (msg) => {
-    console.log(`[Event Mesh Received] 'enterprise/ai/po/Created' event received:`, msg.data);
-    const {purchaseOrder, supplier, totalAmount, currency} = msg.data||{};
+    // console.log(`[Event Mesh Received] 'enterprise/ai/po/Created' event received:`, msg.data);
+    const {purchaseOrder, supplier, totalAmount, currency, ID} = msg.data||{};
     if(!purchaseOrder || !supplier || !totalAmount){
       console.warn('[Event Mesh Warning] Missing required fields in event data. Skipping processing.');
       return;
     }
     try{
+      const existing = await SELECT.one.from(PurchaseOrders).where({ purchaseOrder });
+      const poID = ID || (existing ? existing.ID : cds.utils.uuid());
       await UPSERT.into(PurchaseOrders).entries({
+        ID: poID, 
         purchaseOrder,
         supplier, 
         totalAmount,
@@ -254,9 +257,10 @@ module.exports = cds.service.impl(async function () {
         } 
   });
 
-    this.after(['CREATE', 'SAVE'], 'PurchaseOrders', async (po) => {
-    try {
+    this.after('SAVE', 'PurchaseOrders', async (po) => {
+      if(po.IsActiveEntity === false) return; // Skip if it's a draft save
       await messaging.emit('enterprise/ai/po/Created', {
+        ID: po.ID,
         purchaseOrder: po.purchaseOrder || po.ID,
         supplier: po.supplier,
         buyer: po.buyer,
@@ -267,10 +271,10 @@ module.exports = cds.service.impl(async function () {
         deliveryDate: po.deliveryDate,
         timestamp: new Date().toISOString()
       });
-      console.log(`[Event Mesh Publish] Sent 'enterprise/ai/po/Created' for PO: ${po.purchaseOrder || po.ID}`);
-    } catch (err) {
-      console.error(`[Event Mesh Publish Error] ${err.message}`);
-    }
+    //   console.log(`[Event Mesh Publish] Sent 'enterprise/ai/po/Created' for PO: ${po.purchaseOrder || po.ID}`);
+    // } catch (err) {
+    //   console.error(`[Event Mesh Publish Error] ${err.message}`);
+    // }
   });
   // this.after('UPDATE', 'PurchaseOrders', async (po) => {
   //   if(po.status === 'Rejected'){
@@ -490,67 +494,153 @@ module.exports = cds.service.impl(async function () {
 
   //////////////////////////////////////////////////
   // Feature 3 — Upload Document for RAG
-  this.on('uploadDocument', async req => {
-    const { filename, content } = req.data || {}
-      if (!filename || typeof filename !== 'string' || !filename.trim()) {
-        return req.reject(400, 'filename is required')
-      }
-      if (!content || typeof content !== 'string') {
-        return req.reject(400, 'content is required')
-      }
+  // this.on('uploadDocument', async req => {
+  //   const { filename, content } = req.data || {}
+  //     if (!filename || !content) return req.reject(400, 'filename and content are required');
 
-      const tx = cds.tx(req)
-      const docID = cds.utils.uuid()
-      const fileName = filename.trim()
-      const isPDF = fileName.toLowerCase().endsWith('.pdf')
+  //     const tx = cds.tx(req)
+  //     const docID = cds.utils.uuid()
+  //     const isPDF = filename.toLowerCase().endsWith('.pdf')
 
-      let extractedText
-      try {
-        extractedText = await extractText(fileName, content)
-      } catch (error) {
-        console.error(`[Upload Document Error] ${error.message}`);
-        return req.reject(400, `Failed to process document: ${error.message}`)
-      }
+  //     // let extractedText
+  //     // try {
+  //     //   extractedText = await extractText(filename, content)
+  //     // } catch (error) {
+  //     //   console.error(`[Upload Document Error] ${error.message}`);
+  //     //   return req.reject(400, `Failed to process document: ${error.message}`)
+  //     // }
 
-      const cleanText = extractedText
-        .replace(/\r\n/g, '\n')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim()
+  //     // const cleanText = extractedText
+  //     //   .replace(/\r\n/g, '\n')
+  //     //   .replace(/\n{3,}/g, '\n\n')
+  //     //   .trim()
 
+  //     await tx.run(INSERT.into(Documents).entries({
+  //       ID: docID,
+  //       fileName: filename.trim(),
+  //       content: isPDF ? 'Processing...' : content,
+  //       uploadedAt: new Date().toISOString(),
+  //       fileType: isPDF ? 'pdf' : 'text'
+  //     }))
+
+  //     // const chunkSize = 500
+  //     // const overlap = 50
+  //     // const chunks = []
+  //     // for (let i = 0; i < cleanText.length; i += chunkSize - overlap) {
+  //     //   const chunk = cleanText.substring(i, i + chunkSize)
+  //     //   if (chunk.trim()) chunks.push(chunk)
+  //     // }
+
+  //     cds.spawn({ tenant: cds.context.tenant, user: cds.context.user }),async (bgTx) => {
+  //       try {
+  //         const extractedText = await extractText(filename, content);
+  //         const cleanText = extractedText.replace(/\r\n/g, '\n').trim();
+    
+  //         // Update full extracted content
+  //         await bgTx.run(UPDATE(Documents).set({ content: cleanText }).where({ ID: docID }));
+    
+  //         // Split into chunks and call HuggingFace/OpenAI embedding API
+  //         const chunkSize = 500, overlap = 50;
+  //         const chunks = [];
+  //         for (let i = 0; i < cleanText.length; i += chunkSize - overlap) {
+  //           const chunk = cleanText.substring(i, i + chunkSize);
+  //           if (chunk.trim()) chunks.push(chunk);
+  //         }
+    
+  //         const chunkEntries = [];
+  //         for (let idx = 0; idx < chunks.length; idx++) {
+  //           const vector = await generateEmbedding(chunks[idx]);
+  //           chunkEntries.push({
+  //             ID: cds.utils.uuid(),
+  //             documentID: docID,
+  //             chunkText: chunks[idx],
+  //             chunkIndex: idx,
+  //             embedding: JSON.stringify(vector)
+  //           });
+  //         }
+    
+  //         await bgTx.run(INSERT.into(Embeddings).entries(chunkEntries));
+  //         console.log(`[Background] Embeddings generated for document: ${filename}`);
+  //       } catch (err) {
+  //         console.error(`[Background Embedding Failed] ${err.message}`);
+  //       }
+  //     });
+    
+  //     return `Document "${filename}" upload accepted. Embedding generation started in the background.`;
+  //   });
+
+  //     const chunkEntries=[];
+  //     for(let index=0;index<chunks.length;index++){
+  //       const chunkText=chunks[index]
+  //       const vector =await generateEmbedding(chunkText)
+  //       chunkEntries.push({
+  //         ID: cds.utils.uuid(),
+  //         documentID: docID,
+  //         chunkText: chunkText,
+  //         chunkIndex: index,
+  //         embedding: JSON.stringify(vector)
+  //       })
+  //     }
+  //     await tx.run(INSERT.into(Embeddings).entries(chunkEntries))
+
+  //     return `Document "${filename}" uploaded successfully. ${chunks.length} chunks stored with semantic embeddings.`
+  // })
+
+this.on('uploadDocument', async req => {
+      const { filename, content } = req.data || {};
+      if (!filename || !content) return req.reject(400, 'filename and content are required');
+    
+      const docID = cds.utils.uuid();
+      const tx = cds.tx(req);
+      const isPDF = filename.toLowerCase().endsWith('.pdf');
+    
+      // 1. Store the initial Document record synchronously
       await tx.run(INSERT.into(Documents).entries({
         ID: docID,
-        fileName,
-        content: cleanText,
-        uploadedAt: toTimestamp(),
+        fileName: filename.trim(),
+        content: isPDF ? 'Processing...' : content,
+        uploadedAt: new Date().toISOString(),
         fileType: isPDF ? 'pdf' : 'text'
-      }))
-
-      const chunkSize = 500
-      const overlap = 50
-      const chunks = []
-      for (let i = 0; i < cleanText.length; i += chunkSize - overlap) {
-        const chunk = cleanText.substring(i, i + chunkSize)
-        if (chunk.trim()) chunks.push(chunk)
-      }
-
-      const chunkEntries=[];
-      for(let index=0;index<chunks.length;index++){
-        const chunkText=chunks[index]
-        const vector =await generateEmbedding(chunkText)
-        chunkEntries.push({
-          ID: cds.utils.uuid(),
-          documentID: docID,
-          chunkText: chunkText,
-          chunkIndex: index,
-          embedding: JSON.stringify(vector)
-        })
-      }
-      await tx.run(INSERT.into(Embeddings).entries(chunkEntries))
-
-      return `Document "${fileName}" uploaded successfully. ${chunks.length} chunks stored with semantic embeddings.`
-  })
-
-
+      }));
+    
+      // 2. Spawn the heavy embedding generation in the background
+      cds.spawn({ tenant: cds.context.tenant, user: cds.context.user }, async (bgTx) => {
+        try {
+          const extractedText = await extractText(filename, content);
+          const cleanText = extractedText.replace(/\r\n/g, '\n').trim();
+    
+          // Update full extracted content
+          await bgTx.run(UPDATE(Documents).set({ content: cleanText }).where({ ID: docID }));
+    
+          // Split into chunks and call HuggingFace/OpenAI embedding API
+          const chunkSize = 500, overlap = 50;
+          const chunks = [];
+          for (let i = 0; i < cleanText.length; i += chunkSize - overlap) {
+            const chunk = cleanText.substring(i, i + chunkSize);
+            if (chunk.trim()) chunks.push(chunk);
+          }
+    
+          const chunkEntries = [];
+          for (let idx = 0; idx < chunks.length; idx++) {
+            const vector = await generateEmbedding(chunks[idx]);
+            chunkEntries.push({
+              ID: cds.utils.uuid(),
+              documentID: docID,
+              chunkText: chunks[idx],
+              chunkIndex: idx,
+              embedding: JSON.stringify(vector)
+            });
+          }
+    
+          await bgTx.run(INSERT.into(Embeddings).entries(chunkEntries));
+          console.log(`[Background] Embeddings generated for document: ${filename}`);
+        } catch (err) {
+          console.error(`[Background Embedding Failed] ${err.message}`);
+        }
+      });
+    
+      return `Document "${filename}" upload accepted. Embedding generation started in the background.`;
+    });
 
   // Feature 4 — Executive Summary (queries PurchaseOrders)
   this.on('getSummary', async req => {

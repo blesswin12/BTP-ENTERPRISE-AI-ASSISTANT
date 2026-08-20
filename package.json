@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@cap-js/attachments": "^3.13.3",
+    "@cap-js/audit-logging": "^1.2.2",
     "@cap-js/hana": "^2",
     "@cap-js/notifications": "^0.3.0",
     "@cap-js/postgres": "^2.3.0",
@@ -41,17 +42,20 @@
     "test:silent": "npx cds test --silent"
   },
   "private": true,
-   "cds": {
-        "requires": {
-          "messaging": {
-            "[production]": {
-              "kind": "enterprise-messaging-shared",
-              "format": "cloudevents"
-            },
-            "[development]": {
-              "kind": "file-based-messaging"
-            }
-          },
+  "cds": {
+    "requires": {
+      "audit-log": {
+        "kind": "audit-log-to-console"
+      },
+      "messaging": {
+        "[production]": {
+          "kind": "enterprise-messaging-shared",
+          "format": "cloudevents"
+        },
+        "[development]": {
+          "kind": "file-based-messaging"
+        }
+      },
       "toggles": true,
       "extensibility": true,
       "auth": "mocked",
@@ -69,14 +73,12 @@
       "html5-repo": true,
       "notifications": {
         "types": "srv/notification-types.json",
-        "outbox": null,
         "outboxed": true
       },
       "credstore": {
         "kind": "rest"
       },
       "attachments": {
-        "outbox": null,
         "outboxed": true
       }
     }

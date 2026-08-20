@@ -1,6 +1,5 @@
 using from '@sap/cds-mtxs/db/extensions';
 using from '@sap/cds-mtxs/srv/bootstrap';
-
 using {enterprise.ai as db} from '../db/schema';
 
 service ChatService @(path: '/chat') {
@@ -18,6 +17,23 @@ service ChatService @(path: '/chat') {
     action getSummary     () returns String;
     action checkOverdueOrders() returns String;
 }
+annotate ChatService.PurchaseOrders with @PersonalData : {
+    EntitySemantics : 'DataSubject',
+    DataSubjectRole : 'Buyer'
+} {
+    buyer    @PersonalData.FieldSemantics  : 'DataSubjectID';
+    supplier @PersonalData.IsPotentiallySensitive;
+}
+
+annotate ChatService.PurchaseOrders with @(
+    AuditLog.Operation : {
+        Insert : true,
+        Update : true,
+        Delete : true,
+        Read : true
+    }
+);
+
 
 annotate ChatService.PurchaseOrders with {
     purchaseOrder @mandatory;
