@@ -1,5 +1,3 @@
-using from '@sap/cds-mtxs/db/extensions';
-using from '@sap/cds-mtxs/srv/bootstrap';
 using {enterprise.ai as db} from '../db/schema';
 
 service ChatService @(path: '/chat') {

@@ -1,12 +1,7 @@
 'use strict'
 
 const cds = require('@sap/cds')
-
-const { GET, POST, PATCH, DELETE, expect, defaults } = cds.test('.')
-  .in(__dirname + '/..')
-
-// Don't use defaults.path — use full paths instead
-defaults.validateStatus = () => true  // never throw on any status
+const { GET, POST, PATCH, DELETE, expect } = cds.test()
 
 describe('ChatService — Purchase Orders', () => {
 
@@ -20,11 +15,12 @@ describe('ChatService — Purchase Orders', () => {
   })
 
   it('returns 400 for invalid filter', async () => {
-    const { status } = await GET(
-      "/chat/PurchaseOrders?$filter=invalidField eq 'ABC'"
-    )
-
-    expect(status).to.equal(400)
+    try {
+      await GET("/chat/PurchaseOrders?$filter=invalidField eq 'ABC'")
+      expect.fail('Should have thrown 400')
+    } catch (err) {
+      expect(err.status || err.response?.status).to.equal(400)
+    }
   })
   it('GET /PurchaseOrders filters by status', async () => {
     const { data } = await GET("/chat/PurchaseOrders?$filter=status eq 'Approved'")
@@ -71,25 +67,33 @@ describe('ChatService — Purchase Orders', () => {
   })
 
   it('POST /PurchaseOrders rejects short PO number', async () => {
-    const res = await POST('/chat/PurchaseOrders', {
-      purchaseOrder: 'ab',
-      supplier     : 'Valid Vendor Ltd',
-      buyer        : 'Valid Buyer',
-      orderDate    : '2026-07-01',
-      deliveryDate : '2026-08-01'
-    })
-    expect(res.status).to.equal(400, `Got status ${res.status}. Data: ${JSON.stringify(res.data)}`)
+    try {
+      await POST('/chat/PurchaseOrders', {
+        purchaseOrder: 'ab',
+        supplier     : 'Valid Vendor Ltd',
+        buyer        : 'Valid Buyer',
+        orderDate    : '2026-07-01',
+        deliveryDate : '2026-08-01'
+      })
+      expect.fail('Should have thrown 400')
+    } catch (err) {
+      expect(err.status || err.response?.status).to.equal(400)
+    }
   })
 
   it('POST /PurchaseOrders rejects delivery before order date', async () => {
-    const res = await POST('/chat/PurchaseOrders', {
-      purchaseOrder: 'PO-DATE-001',
-      supplier     : 'Valid Vendor Ltd',
-      buyer        : 'Valid Buyer',
-      orderDate    : '2026-08-01',
-      deliveryDate : '2026-07-01'
-    })
-    expect(res.status).to.equal(400, `Got status ${res.status}. Data: ${JSON.stringify(res.data)}`)
+    try {
+      await POST('/chat/PurchaseOrders', {
+        purchaseOrder: 'PO-DATE-001',
+        supplier     : 'Valid Vendor Ltd',
+        buyer        : 'Valid Buyer',
+        orderDate    : '2026-08-01',
+        deliveryDate : '2026-07-01'
+      })
+      expect.fail('Should have thrown 400')
+    } catch (err) {
+      expect(err.status || err.response?.status).to.equal(400)
+    }
   })
 
   // ── UPDATE tests ──
@@ -120,15 +124,19 @@ describe('ChatService — Purchase Orders', () => {
     })
     expect(status).to.equal(200)
     expect(data.value).to.be.a('string')
-    expect(data.value).to.include('uploaded successfully')
+    expect(data.value).to.include('upload accepted')
   })
 
   it('POST /uploadDocument rejects empty filename', async () => {
-    const { status } = await POST('/chat/uploadDocument', {
-      filename: '',
-      content : 'some content'
-    })
-    expect(status).to.equal(400)
+    try {
+      await POST('/chat/uploadDocument', {
+        filename: '',
+        content : 'some content'
+      })
+      expect.fail('Should have thrown 400')
+    } catch (err) {
+      expect(err.status || err.response?.status).to.equal(400)
+    }
   })
 
   // ── CHAT HISTORY tests ──

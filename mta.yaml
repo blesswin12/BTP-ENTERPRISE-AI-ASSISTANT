@@ -7,7 +7,7 @@ modules:
   type: nodejs
   path: gen/srv
   requires:
-  - name: enterprise-ai-assistant-event-mesh
+  # - name: enterprise-ai-assistant-event-mesh
   - name: enterprise-ai-assistant-auth
   - name: enterprise-ai-assistant-db
   - name: enterprise-ai-assistant-destination
@@ -75,6 +75,7 @@ modules:
       name: mcp-api
       url: ~{mcp-url}
   - name: enterprise-ai-assistant-logging
+  # - name: enterprise-ai-assistant-auditlog
   - name: enterprise-ai-assistant-auth
   - name: enterprise-ai-assistant-destination
   - name: enterprise-ai-assistant-html5-runtime
@@ -116,26 +117,31 @@ modules:
     - npm run build:cf
     supported-platforms: []
 resources:
-- name: enterprise-ai-assistant-event-mesh
-  type: org.cloudfoundry.managed-service
-  parameters:
-    service: enterprise-messaging
-    service-plan: default
-    config:
-      options:
-        management: true
-      rules:
-        topicRules:
-          inboundRules:
-            - "sap/s4/beh/purchaseorder/v1/PurchaseOrder/*"
-          outboundRules:
-            - "enterprise/ai/po/*"
-      queueDefinitions:
-        - name: "enterprise/ai/po_sync_queue"
-          maxQueueSizeInBytes: 104857600
-      subscriptions:
-        - queue: "enterprise/ai/po_sync_queue"
-          topic: "sap/s4/beh/purchaseorder/v1/PurchaseOrder/*"
+# - name: enterprise-ai-assistant-auditlog
+#   type: org.cloudfoundry.managed-service
+#   parameters:
+#     service: auditlog-viewer
+#     service-plan: free
+# - name: enterprise-ai-assistant-event-mesh
+#   type: org.cloudfoundry.managed-service
+#   parameters:
+#     service: enterprise-messaging
+#     service-plan: default
+    # config:
+    #   options:
+    #     management: true
+    #   rules:
+    #     topicRules:
+    #       inboundRules:
+    #        - "sap/s4/beh/purchaseorder/v1/PurchaseOrder/*"
+    #       outboundRules:
+    #         - "enterprise/ai/po/*"
+    #   queueDefinitions:
+    #     - name: "enterprise/ai/po_sync_queue"
+    #       maxQueueSizeInBytes: 104857600
+    #   subscriptions:
+    #     - queue: "enterprise/ai/po_sync_queue"
+    #       topic: "sap/s4/beh/purchaseorder/v1/PurchaseOrder/*"
     
 - name: enterprise-ai-assistant-auth
   type: org.cloudfoundry.managed-service

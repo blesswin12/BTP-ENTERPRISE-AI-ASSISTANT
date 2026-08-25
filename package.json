@@ -37,9 +37,9 @@
     "undeploy": "cf undeploy enterprise-ai-assistant --delete-services --delete-service-keys --delete-service-brokers",
     "build": "rm -rf resources mta_archives && mbt build --mtar archive",
     "deploy": "cf deploy mta_archives/archive.mtar --retries 1",
-    "test": "npx cds test",
-    "test:watch": "npx cds test --watch",
-    "test:silent": "npx cds test --silent"
+    "test": "env -u NODE_PATH cds test",
+    "test:watch": "env -u NODE_PATH cds test --watch",
+    "test:silent": "env -u NODE_PATH cds test --silent"
   },
   "private": true,
   "cds": {
@@ -48,16 +48,8 @@
         "kind": "audit-log-to-console"
       },
       "messaging": {
-        "[production]": {
-          "kind": "enterprise-messaging-shared",
-          "format": "cloudevents"
-        },
-        "[development]": {
-          "kind": "file-based-messaging"
-        }
+        "kind": "local-messaging"
       },
-      "toggles": true,
-      "extensibility": true,
       "auth": "mocked",
       "db": {
         "kind": "sqlite",
