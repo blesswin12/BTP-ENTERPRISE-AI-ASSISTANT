@@ -2,7 +2,7 @@ const cds = require('@sap/cds')
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY
 const GROQ_API_URL = process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions'
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b'
 const EMBEDDING_API_URL = process.env.EMBEDDING_API_URL || 'https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2';
 const { getRequestContext, logWithContext } = require('./utils/context-helper');
 
@@ -54,6 +54,21 @@ async function callGroq(systemPrompt, userMessage, history = []) {
   const data = await response.json()
   return data?.choices?.[0]?.message?.content
 }
+
+
+async function getRecentChangeLogs(tx, limit=50){
+  const Changes = cds.entities?.['sap.changelog.Changes'] || cds.entities?.['sap.changelog.ChangeLog'];
+  if(!Changes) return []
+
+  const db = await cds.connect.to('db');
+  return await db.run(
+    SELECT.from(Changes)
+      .columns('ID','entity','entityKey','objectID','attribute','valueChangedFrom','valueChangedTo', 'modification', 'createdBy', 'createdAt' )
+      .orderBy('createdAt desc')
+      .limit(limit)
+  );
+}
+
 
 async function generateEmbedding(text) {
   if(!EMBEDDING_API_URL){
@@ -208,73 +223,78 @@ function parseLLMResponse(rawAnswer) {
 
 module.exports = cds.service.impl(async function () {
   const { PurchaseOrders, ChatHistory, Documents } = this.entities
-  const { Embeddings } = cds.entities('enterprise.ai')
+  const Embeddings = cds.entities?.['enterprise.ai.Embeddings'] || cds.model?.definitions?.['enterprise.ai.Embeddings'];
 
   const messaging = await cds.connect.to('messaging');
 
+  function calculateCriticality(po) {
+    if (!po) return;
+    if (po.status === 'Approved' || po.status === 'Completed' || po.status === 'Ordered') {
+      po.criticality = 3; // Positive (Green)
+    } else if (po.status === 'Pending' || po.status === 'Partially Delivered' || po.status === 'Draft') {
+      po.criticality = 2; // Critical (Orange/Yellow)
+    } else if (po.status === 'Rejected' || po.status === 'Cancelled') {
+      po.criticality = 1; // Negative (Red)
+    } else {
+      po.criticality = 0; // Neutral
+    }
+  }
+
+  this.after('READ', ['PurchaseOrders', 'PurchaseOrders.drafts'], (data) => {
+    if (Array.isArray(data)) {
+      data.forEach(po => calculateCriticality(po));
+    } else if (data) {
+      calculateCriticality(data);
+    }
+  });
+
   messaging.on('enterprise/ai/po/Created', async (msg) => {
-    // console.log(`[Event Mesh Received] 'enterprise/ai/po/Created' event received:`, msg.data);
-    const {purchaseOrder, supplier, totalAmount, currency, ID} = msg.data||{};
-    if(!purchaseOrder || !supplier || !totalAmount){
+    const { purchaseOrder, supplier, totalAmount, currency, ID, buyer, status, orderDate, deliveryDate } = msg.data || {};
+    if (!purchaseOrder || !supplier || !totalAmount) {
       console.warn('[Event Mesh Warning] Missing required fields in event data. Skipping processing.');
       return;
     }
-    try{
+    try {
       const existing = await SELECT.one.from(PurchaseOrders).where({ purchaseOrder });
       const poID = ID || (existing ? existing.ID : cds.utils.uuid());
       await UPSERT.into(PurchaseOrders).entries({
         ID: poID, 
         purchaseOrder,
         supplier, 
+        buyer: buyer || (existing ? existing.buyer : null),
         totalAmount,
-        currency: currency || 'USD',
-        status: 'Pending',  
-        orderDate: new Date().toISOString().split('T')[0],
-        deliveryDate: new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0] 
+        currency: currency || (existing ? existing.currency : 'USD'),
+        status: status || (existing ? existing.status : 'Pending'),  
+        orderDate: orderDate || (existing ? existing.orderDate : new Date().toISOString().split('T')[0]),
+        deliveryDate: deliveryDate || (existing ? existing.deliveryDate : new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0]) 
       });
       console.log(`[Event Mesh Processing] Purchase Order ${purchaseOrder} upserted successfully.`);
 
-    }catch(error){  
+    } catch (error) {  
       console.error(`[Event Mesh Error] Failed to upsert Purchase Order ${purchaseOrder}. Error: ${error.message}`);
     }
   });
 
-  // this.after(['CREATE','SAVE'], 'PurchaseOrders', async (po) => {
-  //       if (po.totalAmount > 100000) {
-  //         await publishAlert(
-  //           'PurchaseOrder.HighSpendCreated',
-  //           `High spend purchase order ${po.purchaseOrder || po.ID} created`,
-  //           `A purchase order ${po.purchaseOrder || po.ID} for supplier "${po.supplier || 'N/A'}" was created with total amount ${po.totalAmount} ${po.currency || ''}. Review
-  // required.`,
-  //           'INFO'
-  //         );
-  //       } 
-  // });
-
   this.after(['CREATE','SAVE'], 'PurchaseOrders', async (po) => {
-        if (po.totalAmount > 100000) {
-          await publishAlert(po);
-        } 
+    if (po.totalAmount > 100000) {
+      await publishAlert(po);
+    } 
   });
 
-    this.after('SAVE', 'PurchaseOrders', async (po) => {
-      if(po.IsActiveEntity === false) return; // Skip if it's a draft save
-      await messaging.emit('enterprise/ai/po/Created', {
-        ID: po.ID,
-        purchaseOrder: po.purchaseOrder || po.ID,
-        supplier: po.supplier,
-        buyer: po.buyer,
-        totalAmount: po.totalAmount,
-        currency: po.currency || 'USD',
-        status: po.status || 'Pending',
-        orderDate: po.orderDate,
-        deliveryDate: po.deliveryDate,
-        timestamp: new Date().toISOString()
-      });
-    //   console.log(`[Event Mesh Publish] Sent 'enterprise/ai/po/Created' for PO: ${po.purchaseOrder || po.ID}`);
-    // } catch (err) {
-    //   console.error(`[Event Mesh Publish Error] ${err.message}`);
-    // }
+  this.after('SAVE', 'PurchaseOrders', async (po) => {
+    if (po.IsActiveEntity === false) return; // Skip if it's a draft save
+    await messaging.emit('enterprise/ai/po/Created', {
+      ID: po.ID,
+      purchaseOrder: po.purchaseOrder || po.ID,
+      supplier: po.supplier,
+      buyer: po.buyer,
+      totalAmount: po.totalAmount,
+      currency: po.currency || 'USD',
+      status: po.status || 'Pending',
+      orderDate: po.orderDate,
+      deliveryDate: po.deliveryDate,
+      timestamp: new Date().toISOString()
+    });
   });
   // this.after('UPDATE', 'PurchaseOrders', async (po) => {
   //   if(po.status === 'Rejected'){
@@ -340,10 +360,15 @@ module.exports = cds.service.impl(async function () {
   });
 
   // Feature 1 — Analytics Chat (queries PurchaseOrders)
+
+
   this.on('askAnalytics', async req => {
     const question = getQuestion(req)
     const conversationID = req.data?.conversationID || cds.utils.uuid()
-    const tx = cds.tx(req)    
+    const tx = cds.tx(req);
+
+    const orders = await tx.run(SELECT.from(PurchaseOrders));
+    const changelogs = await getRecentChangeLogs(tx);
 
     let history = []
     if (conversationID) {
@@ -353,32 +378,70 @@ module.exports = cds.service.impl(async function () {
         .limit(10)
       )
     }
-    const orders = await tx.run(SELECT.from(PurchaseOrders))
-    const dataContext = JSON.stringify(orders, null, 2)
 
-    const systemPrompt = `You are a procurement analytics assistant.
-    You have access to the following purchase order data:
-    ${dataContext}
-
-    Answer the user's question using only this data.
-    Be concise, use numbers, and mention percentages where relevant.
-
-    You MUST respond ONLY with a JSON object matching this schema:
+    const systemPrompt = `You are an expert SAP Enterprise Procurement & Audit Analytics Assistant.
+    Your job is to answer user queries accurately by analyzing both CURRENT purchase order records and HISTORICAL change tracking audit logs.
+    
+    =========================================
+    DATA CONTEXT
+    =========================================m
+    [CURRENT PURCHASE ORDERS]
+    ${JSON.stringify(orders, null, 2)}
+    
+    [HISTORICAL CHANGE LOGS (sap.changelog.ChangeLog)]
+    ${JSON.stringify(changelogs, null, 2)}
+    
+    =========================================
+    REASONING & GROUNDING RULES
+    =========================================
+    1. CURRENT VS. HISTORICAL QUERIES:
+       - If the user asks about current status, spend totals, suppliers, or line items -> Use [CURRENT PURCHASE ORDERS].
+       - If the user asks about past changes, approvals, rejections, price/quantity deltas, postponements, or WHO modified a record -> Cross-
+  examine [HISTORICAL CHANGE LOGS] matching the entityID or purchaseOrder.
+    
+    2. NO GUESSWORK (AVOID "LIKELY"):
+       - When an audit record exists in [HISTORICAL CHANGE LOGS], state the exact user ('modifiedBy'), timestamp ('modifiedAt'), and
+  before/after values ('oldValue' -> 'newValue') with 100% factual certainty.
+       - If no change log exists for a specific historical inquiry, state clearly: "No historical modification record found in the audit log"
+  rather than guessing.
+    
+    3. CALCULATION & DELTAS:
+       - When explaining price or quantity increases/decreases, show the exact delta (e.g., "increased from 10 to 25 units (+150%) raising
+  the total from $10,000 to $25,000").
+    
+    4. CONFIDENCE SCORING:
+       - High (90-100): Direct factual match found in Current Orders and/or Historical Change Logs.
+       - Medium (60-89): Current order found, but historical timeline is partially inferred.
+       - Low (0-59): Incomplete data or requested order does not exist.
+    
+    =========================================
+    STRICT OUTPUT FORMAT
+    =========================================
+    You MUST respond ONLY with a raw JSON object matching the schema below. 
+    Do NOT include any markdown code fences (\`\`\`json or \`\`\`), introduction, or trailing text.
+    
     {
-    "answer": "A markdown string containing the detailed answer to the user's question.",
-    "confidence": "High | Medium | Low",
-    "confidenceScore": 95, // numerical score out of 100 based on data completeness
-    "citations": [
-    {
-    "purchaseOrder": "PO number (e.g. PO-001)",
-    "supplier": "Supplier name",
-    "totalAmount": "Total amount with currency",
-    "reason": "Briefly why this PO is relevant to the answer"
-    }
-    ]
-    }
-    Do not include any markdown backticks wrapper around the JSON or any text other than the JSON object.`
+      "answer": "A clear, professional markdown response detailing the answer with bold highlights, user mentions, and timestamps where
+  appropriate.",
+      "confidence": "High | Medium | Low",
+      "confidenceScore": 95,
+      "citations": [
+        {
+          "sourceType": "PurchaseOrders | ChangeLog",
+          "documentNumber": "PO-1001 or UUID",
+          "supplier": "Supplier name if applicable",
+          "attributeChanged": "e.g. status, totalAmount, deliveryDate (or null for static snapshot)",
+          "oldValue": "previous value or null",
+          "newValue": "current/updated value",
+          "modifiedBy": "user email/ID or null",
+          "modifiedAt": "ISO timestamp or null",
+          "reason": "Brief explanation of why this record proves the answer"
+        }
+      ]
+    }`;
 
+
+    
     const rawAnswer = await callGroq(systemPrompt, question, history)
     const parsedAnswer = parseLLMResponse(rawAnswer)
     const finalAnswer = JSON.stringify(parsedAnswer, null, 2)

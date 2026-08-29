@@ -115,6 +115,28 @@ describe('ChatService — Purchase Orders', () => {
     expect(res.status).to.equal(200, `Got status ${res.status}. Data: ${JSON.stringify(res.data)}`)
   })
 
+  it('PATCH /PurchaseOrders updates status to Ordered and calculates criticality', async () => {
+    const { data: created } = await POST('/chat/PurchaseOrders', {
+      purchaseOrder: 'PO-PATCH-002',
+      supplier     : 'Contoso Components',
+      buyer        : 'Marcus Lee',
+      orderDate    : '2026-06-03',
+      deliveryDate : '2026-06-27'
+    })
+
+    const isActive = created.IsActiveEntity !== undefined ? created.IsActiveEntity : false
+    const res = await PATCH(
+      `/chat/PurchaseOrders(ID=${created.ID},IsActiveEntity=${isActive})`,
+      { status: 'Ordered' }
+    )
+    expect(res.status).to.equal(200)
+
+    const { data: updated } = await GET(`/chat/PurchaseOrders(ID=${created.ID},IsActiveEntity=${isActive})`)
+    expect(updated.status).to.equal('Ordered')
+    expect(updated.criticality).to.equal(3)
+    expect(updated.orderDate).to.equal('2026-06-03')
+  })
+
   // ── DOCUMENT tests ──
 
   it('POST /uploadDocument uploads successfully', async () => {
@@ -175,5 +197,31 @@ describe('ChatService — Programmatic Tests', () => {
     results.forEach(po => {
       expect(po.status).to.equal('Approved')
     })
+  })
+
+  it('records change history when a Purchase Order status is updated', async () => {
+    const chatService = await cds.connect.to('ChatService')
+    const db = await cds.connect.to('db')
+    const { PurchaseOrders } = chatService.entities
+    const po = await chatService.run(SELECT.one.from(PurchaseOrders).where({ purchaseOrder: '4500001002' }))
+    expect(po).to.be.ok
+
+    await cds.tx({ user: new cds.User('auditor@company.com') }, async (tx) => {
+      const srvTx = chatService.tx(tx)
+      await srvTx.run(
+        UPDATE(PurchaseOrders)
+          .set({ status: 'Rejected' })
+          .where({ ID: po.ID })
+      )
+    })
+
+    const Changes = cds.entities['sap.changelog.Changes']
+    expect(Changes).to.be.ok
+    const recordedChanges = await db.run(
+      SELECT.from(Changes).where({ entityKey: po.ID, attribute: 'status' })
+    )
+    expect(recordedChanges.length).to.be.greaterThan(0)
+    expect(recordedChanges[0].valueChangedTo).to.equal('Rejected')
+    expect(recordedChanges[0].createdBy).to.equal('auditor@company.com')
   })
 })

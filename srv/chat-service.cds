@@ -15,6 +15,32 @@ service ChatService @(path: '/chat') {
     action getSummary     () returns String;
     action checkOverdueOrders() returns String;
 }
+
+annotate db.PurchaseOrders with @changelog: [
+    purchaseOrder,
+    supplier,
+    status
+]{
+    supplier @changelog;
+    buyer    @changelog;
+    orderDate @changelog;   
+    deliveryDate @changelog;
+    status @changelog;
+    totalAmount @changelog;
+    currency @changelog;
+};
+
+annotate db.PurchaseOrderItems with @changelog: [
+    itemNumber,
+    material
+]{
+    quantity   @changelog;
+    netPrice   @changelog;
+    netAmount  @changelog;
+    plant      @changelog;
+    deliveryDate @changelog;
+};  
+
 annotate ChatService.PurchaseOrders with @PersonalData : {
     EntitySemantics : 'DataSubject',
     DataSubjectRole : 'Buyer'
@@ -40,29 +66,8 @@ annotate ChatService.PurchaseOrders with {
     orderDate     @mandatory;
     deliveryDate  @mandatory;
 
-    status @(
-        Common.ValueListWithFixedValues : true,
-        Common.ValueList : {
-            CollectionPath : 'PurchaseOrders',
-            Parameters     : [{
-                $Type             : 'Common.ValueListParameterOut',
-                LocalDataProperty : status,
-                ValueListProperty : 'status'
-            }]
-        }
-    );
-
-    currency @(
-        Common.ValueListWithFixedValues : true,
-        Common.ValueList : {
-            CollectionPath : 'PurchaseOrders',
-            Parameters     : [{
-                $Type             : 'Common.ValueListParameterOut',
-                LocalDataProperty : currency,
-                ValueListProperty : 'currency'
-            }]
-        }
-    );
+    status   @Common.ValueListWithFixedValues: true;
+    currency @Common.ValueListWithFixedValues: true;
 }
 
 annotate ChatService.PurchaseOrders with @(
@@ -143,3 +148,4 @@ annotate ChatService.PurchaseOrderItems with @(
         { $Type : 'UI.DataField', Value : deliveryDate, Label : 'Delivery Date' }
     ]
 );
+

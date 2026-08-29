@@ -72,12 +72,15 @@ entity PurchaseOrders {
                         on items.purchaseOrder = $self;
 }
 
-type POStatus : String(20) enum {
+type POStatus : String(30) enum {
   Pending;
+  Ordered;
   Approved;
   Rejected;
   Cancelled;
   Completed;
+  PartiallyDelivered = 'Partially Delivered';
+  Draft;
 }
 
 type POCurrency : String(3) enum {

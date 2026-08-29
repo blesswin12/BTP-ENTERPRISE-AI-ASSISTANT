@@ -4,6 +4,7 @@
   "dependencies": {
     "@cap-js/attachments": "^3.13.3",
     "@cap-js/audit-logging": "^1.2.2",
+    "@cap-js/change-tracking": "^2.2.1",
     "@cap-js/hana": "^2",
     "@cap-js/notifications": "^0.3.0",
     "@cap-js/postgres": "^2.3.0",
