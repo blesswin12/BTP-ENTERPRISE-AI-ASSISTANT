@@ -375,15 +375,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (citations && citations.length > 0) {
     let citationsList = '';
     citations.forEach(cit => {
-    if (cit.purchaseOrder) {
-    citationsList += `
-    <div class="citation-card">
-    <div class="citation-title"><i class="fa-solid fa-file-invoice"></i> ${escapeHTML(cit.purchaseOrder)}</div>
-    <div class="citation-meta">Supplier: ${escapeHTML(cit.supplier)} | Amount: ${escapeHTML(cit.totalAmount)}</div>
-    ${cit.reason ? `<div class="citation-reason">${escapeHTML(cit.reason)}</div>` : ''}
-    </div>
-    `;
-    } else if (cit.fileName) {
+          const docNum = cit.documentNumber || cit.purchaseOrder;
+          if (docNum) {
+            citationsList += `
+            <div class="citation-card">
+              <div class="citation-title"><i class="fa-solid fa-file-invoice"></i> ${escapeHTML(docNum)}</div>
+              <div class="citation-meta">Supplier: ${escapeHTML(cit.supplier || 'N/A')} | Source: ${escapeHTML(cit.sourceType ||
+  'PO')}</div>
+              ${cit.reason ? `<div class="citation-reason">${escapeHTML(cit.reason)}</div>` : ''}
+            </div>
+            `;
+          } else if (cit.fileName) {
     citationsList += `
     <div class="citation-card">
     <div class="citation-title"><i class="fa-solid fa-file-lines"></i> ${escapeHTML(cit.fileName)}</div>

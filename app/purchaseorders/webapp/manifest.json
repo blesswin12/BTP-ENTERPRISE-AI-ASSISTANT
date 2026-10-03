@@ -94,6 +94,15 @@
     "resources": {
       "css": []
     },
+    "extends": {
+    "extensions": {
+      "sap.ui.controllerExtensions": {
+        "sap.fe.templates.ListReport.ListReportController": {
+          "controllerName": "enterprise.ai.purchaseorders.ext.controller.ListReportExtension"
+        }
+      }
+    }
+  },
     "routing": {
       "config": {},
       "routes": [
@@ -122,6 +131,7 @@
             "settings": {
               "contextPath": "/PurchaseOrders",
               "variantManagement": "Page",
+              
               "navigation": {
                 "PurchaseOrders": {
                   "detail": {
@@ -133,12 +143,22 @@
                 "@com.sap.vocabularies.UI.v1.LineItem": {
                   "tableSettings": {
                     "type": "ResponsiveTable"
+                  },
+                  "actions": {
+                    "openChat": {
+                      "press": ".extension.enterprise.ai.purchaseorders.ext.controller.ListReportExtension.onOpenChat",
+                      "text": "ProcureAI Chat",
+                      "visible": true,
+                      "enabled": true,
+                      "requiresSelection": false
+                    }
                   }
                 }
               }
             }
           }
         },
+        
         "PurchaseOrdersObjectPage": {
           "type": "Component",
           "id": "PurchaseOrdersObjectPage",

@@ -1,10 +1,12 @@
+try { require('dotenv').config() } catch (e) {}
 const cds = require('@sap/cds')
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY
 const GROQ_API_URL = process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions'
 const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b'
-const EMBEDDING_API_URL = process.env.EMBEDDING_API_URL || 'https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2';
+const EMBEDDING_API_URL = process.env.EMBEDDING_API_URL || ''
 const { getRequestContext, logWithContext } = require('./utils/context-helper');
+const { SELECT } = require('@sap/cds/lib/ql/cds-ql')
 
 
 async function callGroq(systemPrompt, userMessage, history = []) {
@@ -40,7 +42,7 @@ async function callGroq(systemPrompt, userMessage, history = []) {
     body: JSON.stringify({
       model: GROQ_MODEL,
       messages: messages,
-      max_tokens: 1024,
+      max_tokens: 4096,
       temperature: 0.3
     })
   })
@@ -71,45 +73,41 @@ async function getRecentChangeLogs(tx, limit=50){
 
 
 async function generateEmbedding(text) {
-  if(!EMBEDDING_API_URL){
-    return Array.from({ length: 384 }, () => Math.random()-0.5)
+  if (!EMBEDDING_API_URL) {
+    return Array.from({ length: 384 }, () => Math.random() - 0.5)
   }
-  try{
-    const isOpenAI= EMBEDDING_API_URL.includes('openai.Com') || EMBEDDING_API_URL.includes('api.openai.com')
+  try {
+    const isOpenAI = EMBEDDING_API_URL.toLowerCase().includes('openai.com')
     const headers = {
       'Content-Type': 'application/json'
     }
 
-    if(isOpenAI && process.env.OPENAI_API_KEY){
-      headers['Authorization'] = `Bearer ${EMBEDDING_API_URL}`;
-
-    }else{
-      headers['Authorization'] = `Bearer ${process.env.HUGGINGFACE_API_KEY}`;   
+    if (isOpenAI && process.env.OPENAI_API_KEY) {
+      headers['Authorization'] = `Bearer ${process.env.OPENAI_API_KEY}`
     }
 
     const body = isOpenAI 
-          ? JSON.stringify({ input: text, model: process.env.EMBEDDING_MODEL || 'text-embedding-3-small' })
-          : JSON.stringify({ inputs: text });
+      ? JSON.stringify({ input: text, model: process.env.EMBEDDING_MODEL || 'text-embedding-3-small' })
+      : JSON.stringify({ inputs: text });
 
     const response = await fetch(EMBEDDING_API_URL, {
-
-      method:'POST',
+      method: 'POST',
       headers,
       body
     });
-    if(!response.ok){
+    if (!response.ok) {
       throw new Error(`Embedding API request failed with ${response.status}: ${await response.text()}`)
     }
 
-    const data=await response.json()
-    if(isOpenAI){
+    const data = await response.json()
+    if (isOpenAI) {
       return data.data?.[0]?.embedding || []
-    }else{
+    } else {
       return data[0] || []
     }
-  }catch(error){
-    console.error('Error generating embedding:', error)
-    return Array.from({ length: 384 }, () => Math.random()-0.5)
+  } catch (error) {
+    console.error('Error generating embedding:', error.message || error)
+    return Array.from({ length: 384 }, () => Math.random() - 0.5)
   }
 }
 
@@ -220,6 +218,14 @@ function parseLLMResponse(rawAnswer) {
     };
   }
 }
+function sanitizePromptForPrivacy(text) {
+      if (!text || typeof text !== 'string') return text;
+
+      return text
+        .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '<REDACTED_EMAIL>')
+        .replace(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}|\b\d{3}[-.\s]?\d{4}\b/g, '<REDACTED_PHONE>')
+       .replace(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, '<REDACTED_ID>');
+    }
 
 module.exports = cds.service.impl(async function () {
   const { PurchaseOrders, ChatHistory, Documents } = this.entities
@@ -441,8 +447,8 @@ module.exports = cds.service.impl(async function () {
     }`;
 
 
-    
-    const rawAnswer = await callGroq(systemPrompt, question, history)
+    const sanitizedQuestion = sanitizePromptForPrivacy(question);
+    const rawAnswer = await callGroq(systemPrompt, sanitizedQuestion, history)
     const parsedAnswer = parseLLMResponse(rawAnswer)
     const finalAnswer = JSON.stringify(parsedAnswer, null, 2)
 
@@ -602,7 +608,7 @@ module.exports = cds.service.impl(async function () {
   //         // Update full extracted content
   //         await bgTx.run(UPDATE(Documents).set({ content: cleanText }).where({ ID: docID }));
     
-  //         // Split into chunks and call HuggingFace/OpenAI embedding API
+  //         // Split into chunks and generate embeddings
   //         const chunkSize = 500, overlap = 50;
   //         const chunks = [];
   //         for (let i = 0; i < cleanText.length; i += chunkSize - overlap) {
@@ -675,7 +681,7 @@ this.on('uploadDocument', async req => {
           // Update full extracted content
           await bgTx.run(UPDATE(Documents).set({ content: cleanText }).where({ ID: docID }));
     
-          // Split into chunks and call HuggingFace/OpenAI embedding API
+          // Split into chunks and generate embeddings
           const chunkSize = 500, overlap = 50;
           const chunks = [];
           for (let i = 0; i < cleanText.length; i += chunkSize - overlap) {
@@ -782,6 +788,70 @@ Keep it under 200 words. Use bullet points.`
       console.log(`[Background Task] Document "${documentName}" ingested successfully.`);
   });
 })
+
+
+//implementing Data Privacy
+
+this.on('exportDataSubjectInformation', async (req)=>{
+  const { subjectId } = req.data;
+  if(!subjectId) return req.reject(400, 'SubjectId is required');
+
+  const tx = cds.tx(req);
+
+  const chatLogs = await tx.run(
+    SELECT.from(ChatHistory).where({
+      ID: subjectId
+    })
+  );
+
+  const orders = await tx.run(
+    SELECT.from(PurchaseOrders).where({
+      buyer: subjectId
+    })
+  );
+
+  const dsiReport={
+    dataSubject: subjectId,
+    exportedAt: new Date().toISOString(),
+    recordCount: chatLogs.length + orders.length,
+    personalData: {
+      ChatHistory: chatLogs,
+      purchaseOrders: orders
+    }
+  };
+
+  console.log(`[CALESI Data Privacy] Exported DSI report for: ${subjectId}`);
+  return JSON.stringify(dsiReport, null, 2)
+});
+
+this.on('anonymizeDataSubject', async (req)=>{
+  const { subjectId } = req.data;
+  if(!subjectId) return req.reject(400, 'subjectId is required');
+
+  const tx = cds.tx(req);
+
+  const updatedChats = await tx.run(
+    UPDATE(ChatHistory)
+    .set({
+      userQuestion: '[ANONYMIZED_PROMPT]',
+      aiResponse: '[ANONYMIZED_RESPONSE]'
+    }).where({
+      ID: subjectId
+    })
+  );
+
+  const updatedOrders = await tx.run(
+    UPDATE(PurchaseOrders)
+    .set({
+      buyer: 'ANOMYMIZED_USER'
+    }).where({
+      buyer: subjectId
+    })
+  );
+
+  console.log(`[CALESI Data Privacy] Anonymized subject: ${subjectId}`);
+  return `Data Subject "${subjectId}" anomymized successfully (${updatedChats} chat logs, ${updatedOrders} purchase orders).`;
+});
 
 
 });

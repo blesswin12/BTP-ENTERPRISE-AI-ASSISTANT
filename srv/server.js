@@ -1,3 +1,4 @@
+try { require('dotenv').config() } catch (e) {}
 const cds = require('@sap/cds');
 const logging = require("cf-nodejs-logging-support");
 const express = require("express");

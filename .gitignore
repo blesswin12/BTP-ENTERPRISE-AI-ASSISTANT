@@ -1,0 +1,29 @@
+# Environment variables & Local Service Bindings
+.env
+.env.*
+!.env.example
+default-env.json
+!default-env.json.example
+
+# Node dependencies
+node_modules/
+package-lock.json.bak
+
+# CAP / MTA Build artifacts
+gen/
+dist/
+mta_archives/
+resources/
+archive.mtar
+_out/
+
+# Database artifacts
+*.db
+*.sqlite
+
+# Logs
+*.log
+
+# OS / Editor
+.DS_Store
+Thumbs.db

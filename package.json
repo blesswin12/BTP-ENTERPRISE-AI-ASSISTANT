@@ -5,6 +5,7 @@
     "@cap-js/attachments": "^3.13.3",
     "@cap-js/audit-logging": "^1.2.2",
     "@cap-js/change-tracking": "^2.2.1",
+    "@cap-js/data-privacy": "^0.6.3",
     "@cap-js/hana": "^2",
     "@cap-js/notifications": "^0.3.0",
     "@cap-js/postgres": "^2.3.0",
@@ -17,6 +18,7 @@
     "@sap/xssec": "^4",
     "axios": "^1.18.1",
     "cf-nodejs-logging-support": "^8.0.0",
+    "dotenv": "^18.0.1",
     "pdf-parse": "^2.4.5",
     "pg": "^8.22.0",
     "zod": "^3.25.76"
@@ -34,6 +36,7 @@
     "watch:mtx": "CDS_ENV=mtx env -u NODE_PATH node ./node_modules/@sap/cds-dk/bin/cds.js watch --profile mtx",
     "start": "cds-serve",
     "mcp:start": "node mcp/server.js",
+    "test:mcp": "node test/test-mcp-client.js",
     "watch-purchaseorders": "cds watch --open enterprise.ai.purchaseorders/index.html?sap-ui-xx-viewCache=false --livereload false",
     "undeploy": "cf undeploy enterprise-ai-assistant --delete-services --delete-service-keys --delete-service-brokers",
     "build": "rm -rf resources mta_archives && mbt build --mtar archive",

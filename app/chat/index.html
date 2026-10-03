@@ -43,20 +43,38 @@
       </div>
 
       <!-- File Uploader -->
-      <div class="section-container">
-        <h3 class="section-title">Document RAG Upload</h3>
-        <div id="drop-zone" class="upload-dropzone">
-          <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
-          <p class="upload-text">Drag & drop files or click to upload</p>
-          <span class="upload-subtext">Supports PDF, TXT (Max 5MB)</span>
-          <input type="file" id="file-input" accept=".txt,.pdf" style="display: none;" />
-        </div>
-        
-        <!-- Upload Status List -->
-        <div id="uploaded-files-list" class="uploaded-list">
-          <!-- Populated dynamically via JS -->
-        </div>
-      </div>
+<div class="section-container">
+  <h3 class="section-title">Document RAG Upload</h3>
+
+  <div id="drop-zone" class="upload-dropzone">
+    <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+    <p class="upload-text">Drag & drop files or click to upload</p>
+    <span class="upload-subtext">Supports PDF, TXT (Max 5MB)</span>
+    <input type="file" id="file-input" accept=".txt,.pdf" style="display: none;" />
+  </div>
+
+  <div id="uploaded-files-list" class="uploaded-list">
+    <!-- Populated dynamically via JS -->
+  </div>
+
+  <!-- Purchase Orders Navigation -->
+  <a
+    id="btn-po-nav"
+    class="action-btn"
+    href="/enterprise.ai.purchaseorders/index.html"
+    style="
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+    "
+  >
+    <i class="fa-solid fa-cart-shopping"></i>
+    <span>Purchase Orders</span>
+  </a>
+</div>
 
       <div class="sidebar-footer">
         <div class="connection-status">

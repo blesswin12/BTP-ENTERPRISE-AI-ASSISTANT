@@ -5,11 +5,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>Purchase Orders</title>
+    //Fonts & Icons for Chat Launcher
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        html, body, body > div, #container, #container-uiarea {
-            height: 100%;
-        }
-    </style>
+            html, body, body > div, #container, #container-uiarea {
+                height: 100%;
+            }
+    
+            /* Floating ProcureAI Chat Launcher */
+            .procureai-floating-btn {
+                position: fixed;
+                bottom: 24px;
+                right: 24px;
+                z-index: 9999;
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                padding: 12px 20px;
+                border-radius: 50px;
+                background: linear-gradient(135deg, #6366f1, #a855f7);
+                color: #ffffff !important;
+                text-decoration: none;
+                box-shadow: 0 4px 20px rgba(139, 92, 246, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.15);
+                font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                font-size: 14px;
+                font-weight: 600;
+                letter-spacing: 0.3px;
+                transition: all 0.25s ease-in-out;
+                cursor: pointer;
+            }
+    
+            .procureai-floating-btn:hover {
+                transform: translateY(-3px) scale(1.03);
+                box-shadow: 0 8px 25px rgba(139, 92, 246, 0.65), 0 0 0 2px rgba(255, 255, 255, 0.3);
+                background: linear-gradient(135deg, #4f46e5, #9333ea);
+            }
+    
+            .procureai-floating-btn i {
+                font-size: 18px;
+            }
+    
+            .procureai-floating-btn .btn-badge {
+                font-size: 10px;
+                padding: 2px 7px;
+                border-radius: 10px;
+                background: rgba(255, 255, 255, 0.25);
+                text-transform: uppercase;
+                font-weight: 700;
+            }
+        </style>
     <script
         id="sap-ui-bootstrap"
         src="https://sapui5.hana.ondemand.com/1.149.0/resources/sap-ui-core.js"
@@ -31,5 +78,11 @@
         data-settings='{"id" : "enterprise.ai.purchaseorders"}'
         data-handle-validation="true"
     ></div>
+    <a href="/chat/index.html" class="procureai-floating-btn" title="Open ProcureAI Chat Assistant" target="_blank"
+  rel="noopener noreferrer">
+            <i class="fa-solid fa-robot"></i>
+            <span>ProcureAI Chat</span>
+            <span class="btn-badge">Copilot</span>
+        </a>
 </body>
 </html>

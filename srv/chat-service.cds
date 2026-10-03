@@ -1,4 +1,5 @@
 using {enterprise.ai as db} from '../db/schema';
+using from '@cap-js/data-privacy';
 
 service ChatService @(path: '/chat') {
     @readonly entity ChatHistory      as projection on db.ChatHistory;
@@ -14,6 +15,8 @@ service ChatService @(path: '/chat') {
     action uploadDocument (filename : String, content : String) returns String;
     action getSummary     () returns String;
     action checkOverdueOrders() returns String;
+    action exportDataSubjectInformation(subjectId : String) returns String;
+    action anonymizeDataSubject(subjectId : String) returns String;
 }
 
 annotate db.PurchaseOrders with @changelog: [
@@ -47,7 +50,38 @@ annotate ChatService.PurchaseOrders with @PersonalData : {
 } {
     buyer    @PersonalData.FieldSemantics  : 'DataSubjectID';
     supplier @PersonalData.IsPotentiallySensitive;
+    totalAmount @PersonalData.IsPotentiallySensitive;
 }
+
+annotate ChatService.PurchaseOrderItems with @PersonalData : { 
+    EntitySemantics : 'DataSubjectDetails',
+    DataSubjectRole : 'Buyer'
+ } {
+    itemNumber @PersonalData.FieldSemantics : 'DataSubjectID';
+    material @PersonalData.IsPotentiallyPersonal;
+    netAmount @PersonalData.IsPotentiallySensitive;
+ };
+
+ annotate ChatService.ChatHistory with @PersonalData : { 
+    EntitySemantics : 'DataSubject',
+    DataSubjectRole : 'Employee'
+  }{
+    ID @PersonalData.FieldSemantics : 'DataSubjectID';
+    conversationID @PersonalData.IsPotentiallyPersonal;
+    userQuestion @PersonalData.IsPotentiallyPersonal;
+    aiResponse @PersonalData.IsPotentiallyPersonal;
+    timestamp @PersonalData.IsPotentiallyPersonal;
+  }
+
+annotate ChatService.Documents with @PersonalData : { 
+    EntitySemantics : 'Other',
+    DataSubjectRole : 'Employee',
+ } {
+    ID @PersonalData.FieldSemantics : 'DataSubjectID';
+    fileName @PersonalData.IsPotentiallyPersonal;
+    content @PersonalData.IsPotentiallyPersonal;
+    uploadedAt @PersonalData.IsPotentiallyPersonal;
+ } ;
 
 annotate ChatService.PurchaseOrders with @(
     AuditLog.Operation : {

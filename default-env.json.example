@@ -1,0 +1,29 @@
+{
+  "VCAP_SERVICES": {
+    "credstore": [
+      {
+        "name": "enterprise-ai-assistant-credstore",
+        "label": "credstore",
+        "tags": ["credstore"],
+        "credentials": {
+          "url": "https://credstore.cfapps.<region>.hana.ondemand.com/api/v1",
+          "username": "<SERVICE_KEY_USERNAME>",
+          "password": "<SERVICE_KEY_PASSWORD>"
+        }
+      }
+    ],
+    "xsuaa": [
+      {
+        "name": "enterprise-ai-assistant-auth",
+        "label": "xsuaa",
+        "tags": ["xsuaa"],
+        "credentials": {
+          "url": "https://<subdomain>.authentication.<region>.hana.ondemand.com",
+          "clientid": "<CLIENT_ID>",
+          "clientsecret": "<CLIENT_SECRET>",
+          "xsappname": "enterprise-ai-assistant"
+        }
+      }
+    ]
+  }
+}

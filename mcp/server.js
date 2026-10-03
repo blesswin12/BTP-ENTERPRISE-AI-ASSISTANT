@@ -2,6 +2,7 @@
 
 const path = require('node:path')
 process.chdir(path.resolve(__dirname, '..'))
+try { require('dotenv').config() } catch (e) {}
 
 const cds = require('@sap/cds')
 const express = require('express')
@@ -130,12 +131,16 @@ async function main() {
     })
   })
 
-  const port = process.env.PORT || 3000
-  app.listen(port, () => {
+  const port = process.env.MCP_PORT || process.env.PORT || 3001
+  const server = app.listen(port, () => {
     console.log(`SAP Procurement MCP server running on port ${port}`)
     console.log(`SSE endpoint: http://localhost:${port}/mcp`)
     console.log(`Messages endpoint: http://localhost:${port}/mcp/messages`)
     console.log(`Health check: http://localhost:${port}/health`)
+  })
+  server.on('error', (err) => {
+    console.error(`MCP Server failed on port ${port}:`, err.message)
+    process.exit(1)
   })
 }
 
