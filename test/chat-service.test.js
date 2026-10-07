@@ -54,8 +54,8 @@ describe('ChatService — Purchase Orders', () => {
   it('POST /PurchaseOrders creates with auto defaults', async () => {
     const { status, data } = await POST('/chat/PurchaseOrders', {
       purchaseOrder: 'PO-TEST-001',
-      supplier     : 'Test Vendor Ltd',
-      buyer        : 'Test Buyer',
+      supplier_ID  : '20000000-0000-0000-0000-000000000001',
+      buyer_ID     : '20000000-0000-0000-0000-000000000004',
       orderDate    : '2026-07-01',
       deliveryDate : '2026-08-01',
       totalAmount  : 100000
@@ -70,8 +70,8 @@ describe('ChatService — Purchase Orders', () => {
     try {
       await POST('/chat/PurchaseOrders', {
         purchaseOrder: 'ab',
-        supplier     : 'Valid Vendor Ltd',
-        buyer        : 'Valid Buyer',
+        supplier_ID  : '20000000-0000-0000-0000-000000000001',
+        buyer_ID     : '20000000-0000-0000-0000-000000000004',
         orderDate    : '2026-07-01',
         deliveryDate : '2026-08-01'
       })
@@ -85,8 +85,8 @@ describe('ChatService — Purchase Orders', () => {
     try {
       await POST('/chat/PurchaseOrders', {
         purchaseOrder: 'PO-DATE-001',
-        supplier     : 'Valid Vendor Ltd',
-        buyer        : 'Valid Buyer',
+        supplier_ID  : '20000000-0000-0000-0000-000000000001',
+        buyer_ID     : '20000000-0000-0000-0000-000000000004',
         orderDate    : '2026-08-01',
         deliveryDate : '2026-07-01'
       })
@@ -96,13 +96,26 @@ describe('ChatService — Purchase Orders', () => {
     }
   })
 
+  it('POST /PurchaseOrderItems enforces quantity >= 1 range assertion', async () => {
+    try {
+      await POST('/chat/PurchaseOrderItems', {
+        itemNumber: 10,
+        material: 'MAT-001',
+        quantity: 0
+      })
+      expect.fail('Should have thrown validation error')
+    } catch (err) {
+      expect([400, 422]).to.include(err.status || err.response?.status)
+    }
+  })
+
   // ── UPDATE tests ──
 
   it('PATCH /PurchaseOrders updates status', async () => {
     const { data: created } = await POST('/chat/PurchaseOrders', {
       purchaseOrder: 'PO-PATCH-001',
-      supplier     : 'Patch Vendor Ltd',
-      buyer        : 'Patch Buyer',
+      supplier_ID  : '20000000-0000-0000-0000-000000000001',
+      buyer_ID     : '20000000-0000-0000-0000-000000000004',
       orderDate    : '2026-07-01',
       deliveryDate : '2026-08-01'
     })
@@ -118,8 +131,8 @@ describe('ChatService — Purchase Orders', () => {
   it('PATCH /PurchaseOrders updates status to Ordered and calculates criticality', async () => {
     const { data: created } = await POST('/chat/PurchaseOrders', {
       purchaseOrder: 'PO-PATCH-002',
-      supplier     : 'Contoso Components',
-      buyer        : 'Marcus Lee',
+      supplier_ID  : '20000000-0000-0000-0000-000000000002',
+      buyer_ID     : '20000000-0000-0000-0000-000000000005',
       orderDate    : '2026-06-03',
       deliveryDate : '2026-06-27'
     })
@@ -206,14 +219,12 @@ describe('ChatService — Programmatic Tests', () => {
     const po = await chatService.run(SELECT.one.from(PurchaseOrders).where({ purchaseOrder: '4500001002' }))
     expect(po).to.be.ok
 
-    await cds.tx({ user: new cds.User('auditor@company.com') }, async (tx) => {
-      const srvTx = chatService.tx(tx)
-      await srvTx.run(
-        UPDATE(PurchaseOrders)
-          .set({ status: 'Rejected' })
-          .where({ ID: po.ID })
-      )
-    })
+    const res = await PATCH(
+      `/chat/PurchaseOrders(ID=${po.ID},IsActiveEntity=true)`,
+      { status: 'Rejected' },
+      { auth: { username: 'auditor@company.com' } }
+    )
+    expect(res.status).to.equal(200)
 
     const Changes = cds.entities['sap.changelog.Changes']
     expect(Changes).to.be.ok

@@ -228,7 +228,7 @@ function sanitizePromptForPrivacy(text) {
     }
 
 module.exports = cds.service.impl(async function () {
-  const { PurchaseOrders, ChatHistory, Documents } = this.entities
+  const { PurchaseOrders, PurchaseOrderItems, Products, ChatHistory, Documents } = this.entities
   const Embeddings = cds.entities?.['enterprise.ai.Embeddings'] || cds.model?.definitions?.['enterprise.ai.Embeddings'];
 
   const messaging = await cds.connect.to('messaging');
@@ -349,21 +349,68 @@ module.exports = cds.service.impl(async function () {
     }
   });
 
-  this.before(['CREATE', 'UPDATE', 'NEW', 'SAVE'], ['PurchaseOrders', 'PurchaseOrders.drafts'], (req) => {
-    const { purchaseOrder, orderDate, deliveryDate } = req.data;
+this.before(['CREATE', 'UPDATE', 'NEW'], 'PurchaseOrderItems.drafts', async (req) => {
+        const { product_ID } = req.data;
+        if(product_ID){
+          const product = await SELECT.one.from(Products).where({ ID: product_ID });
 
-    if (purchaseOrder && purchaseOrder.length < 5) {
-      req.reject(400, 'Purchase Order number must be at least 5 characters long');
-    }
+          if(product) {
+            req.data.netPrice = req.data.netPrice || product.price;
+            req.data.unit = req.data.unit || product.baseUnit;
+            req.data.description = req.data.description || product.name;
+            req.data.material = req.data.material || product.productID || product.name;
+          }
+        }
+        const itemID = req.data.ID || req.params?.find(p=>p.Id)?.ID;
+        let existing = null;
+        if( itemID && (req.data.quantity === undefined || req.data.netPrice === undefined)){
+          existing = await SELECT.one.from(PurchaseOrderItems.drafts).where({
+            ID: itemID
+          })
+        }
+    
+        // Calculating netAmount
+        const qty = req.data.quantity !== undefined ? req.data.quantity : existing?.quantity;
+        const price = req.data.netPrice !== undefined ? req.data.netPrice : existing?.netPrice;
+        if (qty !== undefined && price !== undefined) {
+          req.data.netAmount = Number(qty) * Number(price);
+        }
+        req._poID = req.data.purchaseOrder_ID || existing?.purchaseOrder_ID;
+      });
+    
+      // Preserve parent PO ID before a draft item is deleted
+      this.before('DELETE', 'PurchaseOrderItems.drafts', async (req) => {
+        const itemID = req.data.ID || req.params?.find(p => p.ID)?.ID;
+          const item = await SELECT.one.from(PurchaseOrderItems.drafts).where({ ID: itemID });
+          if (item) req._poID = item.purchaseOrder_ID;
+      });
+    
+      this.after(['CREATE', 'UPDATE', 'DELETE'], 'PurchaseOrderItems.drafts', async (_, req) => {
+        let poID = req.data.purchaseOrder_ID || req._poID;
+        if (!poID) {
+          const itemID = req.data.ID || req.params?.find(p => p.ID)?.ID;
+          if (itemID) {
+            const item = await SELECT.one.from(PurchaseOrderItems.drafts).where({ ID: itemID });
+            poID = item?.purchaseOrder_ID;
+          }
+        }
+        if (!poID) return;
+    
+        // Use entity object PurchaseOrderItems.drafts instead of a hardcoded string
+        const items = await SELECT.from(PurchaseOrderItems.drafts).where({
+          purchaseOrder_ID: poID
+        });
+        const total = items.reduce((sum, item) => sum + (Number(item.netAmount) || 0), 0);
+        await UPDATE(PurchaseOrders.drafts)
+          .set({ totalAmount: total })
+          .where({ ID: poID });
+      });
 
-    if (
-        orderDate &&
-        deliveryDate &&
-        new Date(deliveryDate) < new Date(orderDate)
-    ) {
-        req.reject(400, 'Delivery date cannot be before order date');
-    }
-  });
+
+
+  
+
+
 
   // Feature 1 — Analytics Chat (queries PurchaseOrders)
 

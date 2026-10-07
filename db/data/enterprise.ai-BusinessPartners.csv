@@ -1,0 +1,7 @@
+ID;partnerNumber;name;role;email;phone;country
+20000000-0000-0000-0000-000000000001;BP-1001;Northwind Industrial Supply;Supplier;contact@northwind.com;+1-555-0101;USA
+20000000-0000-0000-0000-000000000002;BP-1002;Contoso Components;Supplier;sales@contoso.com;+1-555-0102;USA
+20000000-0000-0000-0000-000000000003;BP-1003;Fabrikam Packaging;Supplier;orders@fabrikam.com;+1-555-0103;USA
+20000000-0000-0000-0000-000000000004;BP-2001;Ava Patel;Buyer;ava.patel@company.com;+1-555-0201;USA
+20000000-0000-0000-0000-000000000005;BP-2002;Marcus Lee;Buyer;marcus.lee@company.com;+1-555-0202;USA
+20000000-0000-0000-0000-000000000006;BP-2003;Nora Smith;Buyer;nora.smith@company.com;+1-555-0203;USA

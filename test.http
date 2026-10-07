@@ -41,8 +41,8 @@ Content-Type: {{contentType}}
 
 {
   "purchaseOrder": "PO-9001",
-  "supplier": "Acme Industrial Supplies",
-  "buyer": "Ava Patel",
+  "supplier_ID": "20000000-0000-0000-0000-000000000001",
+  "buyer_ID": "20000000-0000-0000-0000-000000000004",
   "orderDate": "2026-08-18",
   "deliveryDate": "2026-08-25",
   "status": "Pending",

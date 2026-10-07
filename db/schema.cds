@@ -1,58 +1,29 @@
 namespace enterprise.ai;
-using { Attachments } from '@cap-js/attachments';
-entity Documents {
-  key ID         : UUID;
-      fileName   : String(200) not null;
-      content    : LargeString;
-      uploadedAt : DateTime;
-      fileType   : String(50);
-      attachments : Composition of many Attachments;
+
+using { cuid, managed, Currency, sap.common.CodeList } from '@sap/cds/common';
+using from './ai-models';
+
+
+entity OrderStatuses : CodeList {
+  key code        : String(20);
+      criticality : Integer default 0;
 }
 
-entity Embeddings {
-  key ID         : UUID;
-      documentID : UUID not null;
-      document   : Association to Documents on document.ID = documentID;
-      chunkText  : LargeString not null;
-      chunkIndex : Integer not null;
-      embedding  : LargeString;
+entity BusinessPartners : cuid, managed {
+  partnerNumber : String(10) @title: 'Partner ID';
+  name          : String(120);
+  role          : String(20); // 'Supplier', 'Buyer'
+  email         : String(100);
+  phone         : String(30);
+  country       : String(3);
 }
-
-entity ChatHistory {
-  key ID           : UUID;
-      conversationID : UUID;
-      userQuestion : LargeString not null;
-      aiResponse   : LargeString not null;
-      feature      : String(50);
-      timestamp    : DateTime;
-}
-
-// entity PurchaseOrders {
-//   key ID            : UUID;
-//       purchaseOrder : String(20) not null;
-//       supplier      : String(120) not null;
-//       buyer         : String(100);
-//       orderDate     : Date;
-//       deliveryDate  : Date;
-//       status        : String(30);
-//       currency      : String(3);
-//       totalAmount   : Decimal(15,2);
-//       items         : Composition of many PurchaseOrderItems
-//                         on items.purchaseOrder = $self;
-// }
-
-entity PurchaseOrderItems {
-  key ID            : UUID;
-      purchaseOrder : Association to PurchaseOrders;
-      itemNumber    : Integer not null;
-      material      : String(80) not null;
-      description   : String(200);
-      quantity      : Decimal(13,3);
-      unit          : String(10);
-      netPrice      : Decimal(15,2);
-      netAmount     : Decimal(15,2);
-      plant         : String(30);
-      deliveryDate  : Date;
+entity Products : cuid, managed {
+  productID   : String(40) @title: 'Product ID';
+  name        : String(100);
+  category    : String(50);
+  baseUnit    : String(10);
+  price       : Decimal(15, 2);
+  currency    : Currency;
 }
 
 entity PurchaseOrders {
@@ -60,16 +31,34 @@ entity PurchaseOrders {
 
       @assert.format: '^.{5,20}$'
       purchaseOrder : String(20)  not null;
-      supplier      : String(120) not null;
-      buyer         : String(100);
+      supplier      : Association to BusinessPartners not null;
+      buyer         : Association to BusinessPartners;
       orderDate     : Date;
       deliveryDate  : Date;
       status        : POStatus    default 'Pending';
       currency      : POCurrency  default 'INR';
       totalAmount   : Decimal(15,2);
-      virtual criticality   : Integer;
+      virtual criticality : Integer;
+
       items         : Composition of many PurchaseOrderItems
                         on items.purchaseOrder = $self;
+}
+
+entity PurchaseOrderItems {
+  key ID            : UUID;
+      purchaseOrder : Association to PurchaseOrders;
+      itemNumber    : Integer not null;
+      material      : String(80) not null; // Preserves test & CSV compatibility
+      product       : Association to Products;
+      description   : String(200);
+
+      @assert.range: [1, _]
+      quantity      : Decimal(13,3);
+      unit          : String(10);
+      netPrice      : Decimal(15,2);
+      netAmount     : Decimal(15,2);
+      plant         : String(30);
+      deliveryDate  : Date;
 }
 
 type POStatus : String(30) enum {

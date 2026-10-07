@@ -1,0 +1,7 @@
+ID;productID;name;category;baseUnit;price;currency_code
+10000000-0000-0000-0000-000000000001;MAT-1000;Industrial sensor assembly;Sensors;EA;410.00;USD
+10000000-0000-0000-0000-000000000002;MAT-2200;Control cabinet kit;Electronics;EA;800.00;USD
+10000000-0000-0000-0000-000000000003;MAT-3100;Replacement valve set;Hydraulics;EA;325.50;USD
+10000000-0000-0000-0000-000000000004;MAT-4200;Hydraulic hose bundle;Hydraulics;EA;153.10;USD
+10000000-0000-0000-0000-000000000005;PKG-100;Reusable shipping crate;Packaging;EA;48.50;USD
+10000000-0000-0000-0000-000000000006;PKG-200;Foam insert set;Packaging;EA;17.34;USD

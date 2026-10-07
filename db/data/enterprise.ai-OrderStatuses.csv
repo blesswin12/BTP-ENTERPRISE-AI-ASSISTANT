@@ -1,0 +1,9 @@
+code;name;descr;criticality
+Pending;Pending;Awaiting approval or processing;2
+Ordered;Ordered;Sent to supplier;3
+Approved;Approved;Approved by management;3
+Rejected;Rejected;Rejected by approver;1
+Cancelled;Cancelled;Cancelled order;1
+Completed;Completed;Goods delivered and invoiced;3
+Partially Delivered;Partially Delivered;Some line items received;2
+Draft;Draft;Unsaved or work-in-progress draft;2

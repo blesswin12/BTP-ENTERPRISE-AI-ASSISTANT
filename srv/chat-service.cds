@@ -10,6 +10,10 @@ service ChatService @(path: '/chat') {
     entity PurchaseOrders     as projection on db.PurchaseOrders;
     entity PurchaseOrderItems as projection on db.PurchaseOrderItems;
 
+    @readonly entity Products as projection on db.Products;
+    @readonly entity BusinessPartners as projection on db.BusinessPartners;
+    @readonly entity OrderStatuses as projection on db.OrderStatuses;
+
     action askAnalytics   (question : String, conversationID : UUID) returns String;
     action askDocument    (question : String, conversationID : UUID) returns String;
     action uploadDocument (filename : String, content : String) returns String;
@@ -21,11 +25,10 @@ service ChatService @(path: '/chat') {
 
 annotate db.PurchaseOrders with @changelog: [
     purchaseOrder,
-    supplier,
     status
 ]{
-    supplier @changelog;
-    buyer    @changelog;
+    supplier @changelog: [name];
+    buyer    @changelog: [name];
     orderDate @changelog;   
     deliveryDate @changelog;
     status @changelog;
@@ -45,13 +48,22 @@ annotate db.PurchaseOrderItems with @changelog: [
 };  
 
 annotate ChatService.PurchaseOrders with @PersonalData : {
-    EntitySemantics : 'DataSubject',
+    EntitySemantics : 'DataSubjectDetails',
     DataSubjectRole : 'Buyer'
 } {
     buyer    @PersonalData.FieldSemantics  : 'DataSubjectID';
     supplier @PersonalData.IsPotentiallySensitive;
     totalAmount @PersonalData.IsPotentiallySensitive;
-}
+};
+
+annotate ChatService.BusinessPartners with @PersonalData : {
+    EntitySemantics : 'DataSubject',
+    DataSubjectRole : 'Buyer'
+} {
+    ID    @PersonalData.FieldSemantics : 'DataSubjectID';
+    email @PersonalData.IsPotentiallyPersonal;
+    phone @PersonalData.IsPotentiallyPersonal;
+};
 
 annotate ChatService.PurchaseOrderItems with @PersonalData : { 
     EntitySemantics : 'DataSubjectDetails',
@@ -95,8 +107,37 @@ annotate ChatService.PurchaseOrders with @(
 
 annotate ChatService.PurchaseOrders with {
     purchaseOrder @mandatory;
-    supplier      @mandatory;
-    buyer         @mandatory;
+    supplier      @(
+        mandatory,
+        Common.Text            : supplier.name,
+        Common.TextArrangement : #TextFirst,
+        Common.ValueList       : {
+            Label          : 'Suppliers',
+            CollectionPath : 'BusinessPartners',
+            Parameters     : [
+                { $Type : 'Common.ValueListParameterInOut', LocalDataProperty : supplier_ID, ValueListProperty : 'ID' },
+                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'partnerNumber' },
+                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'name' },
+                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'email' },
+                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'phone' }
+            ]
+        }
+    );
+    buyer         @(
+        mandatory,
+        Common.Text            : buyer.name,
+        Common.TextArrangement : #TextFirst,
+        Common.ValueList       : {
+            Label          : 'Buyers',
+            CollectionPath : 'BusinessPartners',
+            Parameters     : [
+                { $Type : 'Common.ValueListParameterInOut', LocalDataProperty : buyer_ID, ValueListProperty : 'ID' },
+                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'partnerNumber' },
+                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'name' },
+                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'email' }
+            ]
+        }
+    );
     orderDate     @mandatory;
     deliveryDate  @mandatory;
 
@@ -104,17 +145,30 @@ annotate ChatService.PurchaseOrders with {
     currency @Common.ValueListWithFixedValues: true;
 }
 
+annotate ChatService.BusinessPartners with @(
+    Communication.Contact : {
+        fn    : name,
+        role  : role,
+        email : [
+            { type : #work, address : email }
+        ],
+        tel   : [
+            { type : #work, uri : phone }
+        ]
+    }
+);
+
 annotate ChatService.PurchaseOrders with @(
     UI.HeaderInfo:{
         TypeName       : 'Purchase Order',
         TypeNamePlural : 'Purchase Orders',
         Title          : { $Type : 'UI.DataField', Value : purchaseOrder },
-        Description    : { $Type : 'UI.DataField', Value : supplier} 
+        Description    : { $Type : 'UI.DataField', Value : supplier.name } 
     },
     UI.LineItem : [
         { $Type : 'UI.DataField', Value : purchaseOrder, Label : 'Purchase Order' },
-        { $Type : 'UI.DataField', Value : supplier,      Label : 'Supplier'       },
-        { $Type : 'UI.DataField', Value : buyer,         Label : 'Buyer'          },
+        { $Type : 'UI.DataField', Value : supplier_ID,   Label : 'Supplier'       },
+        { $Type : 'UI.DataField', Value : buyer_ID,      Label : 'Buyer'          },
         { $Type : 'UI.DataField', Value : orderDate,     Label : 'Order Date'     },
         { $Type : 'UI.DataField', Value : deliveryDate,  Label : 'Delivery Date'  },
         {
@@ -135,8 +189,8 @@ annotate ChatService.PurchaseOrders with @(
         Label : 'Header Information',
         Data  : [
             { $Type : 'UI.DataField', Value : purchaseOrder, Label : 'Purchase Order' },
-            { $Type : 'UI.DataField', Value : supplier,      Label : 'Supplier'       },
-            { $Type : 'UI.DataField', Value : buyer,         Label : 'Buyer'          },
+            { $Type : 'UI.DataField', Value : supplier_ID,   Label : 'Supplier'       },
+            { $Type : 'UI.DataField', Value : buyer_ID,      Label : 'Buyer'          },
             { $Type : 'UI.DataField', Value : orderDate,     Label : 'Order Date'     },
             { $Type : 'UI.DataField', Value : deliveryDate,  Label : 'Delivery Date'  },
             {
@@ -164,12 +218,24 @@ annotate ChatService.PurchaseOrders with @(
     ],
     UI.SelectionFields : [
         purchaseOrder,
-        supplier,
+        supplier_ID,
         status,
         orderDate
     ]
 );
 annotate ChatService.PurchaseOrderItems with @(
+    Common.SideEffects #ItemChanged : {
+        SourceProperties : [ quantity, netPrice, product_ID ],
+        TargetProperties : [
+                netAmount,
+                netPrice,
+                unit,
+                description,
+                material,
+                'purchaseOrder/totalAmount'
+            ],
+        TargetEntities   : [ purchaseOrder ]
+      },
     UI.LineItem : [
         { $Type : 'UI.DataField', Value : itemNumber,   Label : 'Item Number'   },
         { $Type : 'UI.DataField', Value : material,     Label : 'Material'      },
