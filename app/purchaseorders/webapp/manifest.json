@@ -132,6 +132,7 @@
               "contextPath": "/PurchaseOrders",
               "variantManagement": "Page",
               
+              
               "navigation": {
                 "PurchaseOrders": {
                   "detail": {
@@ -167,10 +168,10 @@
             "settings": {
               "editableHeaderContent": false,
               "contextPath": "/PurchaseOrders",
-              "navigation": {
-                "items": {
-                  "detail": {
-                    "route": "PurchaseOrderItemsObjectPage"
+              "controlConfiguration": {
+                "items/@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable"
                   }
                 }
               }

@@ -11,50 +11,84 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
             html, body, body > div, #container, #container-uiarea {
-                height: 100%;
-            }
-    
-            /* Floating ProcureAI Chat Launcher */
-            .procureai-floating-btn {
-                position: fixed;
-                bottom: 24px;
-                right: 24px;
-                z-index: 9999;
-                display: inline-flex;
-                align-items: center;
-                gap: 10px;
-                padding: 12px 20px;
-                border-radius: 50px;
-                background: linear-gradient(135deg, #6366f1, #a855f7);
-                color: #ffffff !important;
-                text-decoration: none;
-                box-shadow: 0 4px 20px rgba(139, 92, 246, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.15);
-                font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                font-size: 14px;
-                font-weight: 600;
-                letter-spacing: 0.3px;
-                transition: all 0.25s ease-in-out;
-                cursor: pointer;
-            }
-    
-            .procureai-floating-btn:hover {
-                transform: translateY(-3px) scale(1.03);
-                box-shadow: 0 8px 25px rgba(139, 92, 246, 0.65), 0 0 0 2px rgba(255, 255, 255, 0.3);
-                background: linear-gradient(135deg, #4f46e5, #9333ea);
-            }
-    
-            .procureai-floating-btn i {
-                font-size: 18px;
-            }
-    
-            .procureai-floating-btn .btn-badge {
-                font-size: 10px;
-                padding: 2px 7px;
-                border-radius: 10px;
-                background: rgba(255, 255, 255, 0.25);
-                text-transform: uppercase;
-                font-weight: 700;
-            }
+    height: 100%;
+}
+
+/* ProcureAI floating launcher – Horizon style */
+.procureai-floating-btn {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: inline-flex;
+    align-items: center;
+    height: 52px;
+    padding: 0 16px;
+    border-radius: 26px;
+    background: #0070f2;                 /* Horizon brand blue */
+    color: #fff !important;
+    text-decoration: none;
+    font-family: "72", "72full", Arial, Helvetica, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+    overflow: hidden;
+    transition: background .2s ease, box-shadow .2s ease;
+    cursor: grab;
+    touch-action: none;      /* lets touch drag instead of scrolling the page */
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.procureai-floating-btn.is-dragging {
+    cursor: grabbing;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .35);
+    transition: none;
+}
+
+.procureai-floating-btn i {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+/* label hidden by default, slides open on hover/focus */
+.procureai-floating-btn .btn-label {
+    max-width: 0;
+    opacity: 0;
+    white-space: nowrap;
+    margin-left: 0;
+    transition: max-width .3s ease, opacity .2s ease, margin-left .3s ease;
+}
+
+.procureai-floating-btn:hover,
+.procureai-floating-btn:focus-visible {
+    background: #0064d9;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
+}
+
+.procureai-floating-btn:hover .btn-label,
+.procureai-floating-btn:focus-visible .btn-label {
+    max-width: 160px;
+    opacity: 1;
+    margin-left: 10px;
+}
+
+/* green "online" dot */
+.procureai-floating-btn .status-dot {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #30914c;
+    border: 2px solid #0070f2;
+    box-sizing: content-box;
+}
+
+@media (max-width: 600px) {
+    .procureai-floating-btn { bottom: 16px; right: 16px; }
+}
         </style>
     <script
         id="sap-ui-bootstrap"
@@ -77,11 +111,97 @@
         data-settings='{"id" : "enterprise.ai.purchaseorders"}'
         data-handle-validation="true"
     ></div>
-    <a href="/chat/index.html" class="procureai-floating-btn" title="Open ProcureAI Chat Assistant" target="_blank"
-  rel="noopener noreferrer">
-            <i class="fa-solid fa-robot"></i>
-            <span>ProcureAI Chat</span>
-            <span class="btn-badge">Copilot</span>
-        </a>
+    <a href="/chat/index.html" class="procureai-floating-btn" draggable="false"
+   title="Open ProcureAI Chat Assistant" aria-label="Open ProcureAI Chat Assistant"
+   target="_blank" rel="noopener noreferrer">
+    <i class="fa-solid fa-wand-magic-sparkles"></i>
+    <span class="btn-label">Ask ProcureAI</span>
+    <span class="status-dot"></span>
+</a>
+<script>
+(function () {
+    var btn = document.querySelector('.procureai-floating-btn');
+    if (!btn) return;
+
+    var KEY = 'procureai-btn-pos';
+    var MARGIN = 16, THRESHOLD = 5;
+    var startX, startY, startLeft, startTop, moved = false;
+
+    function clampTop(t) {
+        return Math.min(Math.max(MARGIN, t), window.innerHeight - btn.offsetHeight - MARGIN);
+    }
+
+    // side = 'left' | 'right', top = px from top
+    function applyPos(side, top) {
+        btn.style.top = clampTop(top) + 'px';
+        btn.style.bottom = 'auto';
+        if (side === 'left') {
+            btn.style.left = MARGIN + 'px';
+            btn.style.right = 'auto';
+        } else {
+            btn.style.right = MARGIN + 'px';
+            btn.style.left = 'auto';
+        }
+    }
+
+    // restore saved position
+    try {
+        var saved = JSON.parse(localStorage.getItem(KEY));
+        if (saved) applyPos(saved.side, saved.top);
+    } catch (e) {}
+
+    btn.addEventListener('pointerdown', function (e) {
+        if (e.button !== undefined && e.button !== 0) return;
+        var r = btn.getBoundingClientRect();
+        startX = e.clientX; startY = e.clientY;
+        startLeft = r.left; startTop = r.top;
+        moved = false;
+        btn.setPointerCapture(e.pointerId);
+    });
+
+    btn.addEventListener('pointermove', function (e) {
+        if (!btn.hasPointerCapture(e.pointerId)) return;
+        var dx = e.clientX - startX, dy = e.clientY - startY;
+
+        if (!moved && Math.hypot(dx, dy) < THRESHOLD) return;  // still a click
+        if (!moved) { moved = true; btn.classList.add('is-dragging'); }
+
+        var maxLeft = window.innerWidth - btn.offsetWidth;
+        var left = Math.min(Math.max(0, startLeft + dx), maxLeft);
+        var top  = Math.min(Math.max(0, startTop + dy), window.innerHeight - btn.offsetHeight);
+
+        btn.style.left = left + 'px';
+        btn.style.top = top + 'px';
+        btn.style.right = 'auto';
+        btn.style.bottom = 'auto';
+    });
+
+    function endDrag(e) {
+        if (btn.hasPointerCapture(e.pointerId)) btn.releasePointerCapture(e.pointerId);
+        if (!moved) return;
+
+        btn.classList.remove('is-dragging');
+        var r = btn.getBoundingClientRect();
+        var side = (r.left + r.width / 2) < window.innerWidth / 2 ? 'left' : 'right';
+        applyPos(side, r.top);                       // snap to nearest edge
+        try {
+            localStorage.setItem(KEY, JSON.stringify({ side: side, top: r.top }));
+        } catch (err) {}
+    }
+    btn.addEventListener('pointerup', endDrag);
+    btn.addEventListener('pointercancel', endDrag);
+
+    // block the link navigation if the user dragged instead of clicked
+    btn.addEventListener('click', function (e) {
+        if (moved) { e.preventDefault(); moved = false; }
+    });
+
+    // keep it on-screen when the window is resized
+    window.addEventListener('resize', function () {
+        var r = btn.getBoundingClientRect();
+        applyPos(btn.style.left !== 'auto' ? 'left' : 'right', r.top);
+    });
+})();
+</script>
 </body>
 </html>

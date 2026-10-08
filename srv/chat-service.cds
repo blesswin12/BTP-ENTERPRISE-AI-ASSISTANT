@@ -224,6 +224,12 @@ annotate ChatService.PurchaseOrders with @(
     ]
 );
 annotate ChatService.PurchaseOrderItems with @(
+    UI.HeaderInfo : {
+        TypeName       : 'Item',
+        TypeNamePlural : 'Items',
+        Title          : { $Type : 'UI.DataField', Value : description },
+        Description    : { $Type : 'UI.DataField', Value : material }
+    },
     Common.SideEffects #ItemChanged : {
         SourceProperties : [ quantity, netPrice, product_ID ],
         TargetProperties : [
@@ -248,4 +254,8 @@ annotate ChatService.PurchaseOrderItems with @(
         { $Type : 'UI.DataField', Value : deliveryDate, Label : 'Delivery Date' }
     ]
 );
+
+annotate ChatService.PurchaseOrderItems with {
+    netAmount @readonly;
+};
 

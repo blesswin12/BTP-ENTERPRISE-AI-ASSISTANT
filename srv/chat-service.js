@@ -361,12 +361,12 @@ this.before(['CREATE', 'UPDATE', 'NEW'], 'PurchaseOrderItems.drafts', async (req
             req.data.material = req.data.material || product.productID || product.name;
           }
         }
-        const itemID = req.data.ID || req.params?.find(p=>p.Id)?.ID;
+        const itemID = req.data.ID || req.params?.[req.params.length - 1]?.ID || req.params?.find(p => p.ID)?.ID;
         let existing = null;
-        if( itemID && (req.data.quantity === undefined || req.data.netPrice === undefined)){
+        if (itemID && (req.data.quantity === undefined || req.data.netPrice === undefined)) {
           existing = await SELECT.one.from(PurchaseOrderItems.drafts).where({
             ID: itemID
-          })
+          });
         }
     
         // Calculating netAmount
