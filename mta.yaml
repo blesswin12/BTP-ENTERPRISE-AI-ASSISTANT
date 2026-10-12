@@ -90,7 +90,7 @@ modules:
   parameters:
     disk-quota: 256M
     keep-existing-routes: true
-    memory: 128M
+    memory: 256M
 - name: enterprise-ai-assistant-app-deployer
   type: com.sap.application.content
   path: gen

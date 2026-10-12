@@ -11,8 +11,8 @@
     },
     {
       "source": "^/sap/bc/ui2/flp(.*)$",
-      "target": "$1",
-      "localDir": "resources",
+      "target": "/sap/bc/ui2/flp$1",
+      "destination": "srv-api",
       "csrfProtection": false,
       "authenticationType": "none"
     },

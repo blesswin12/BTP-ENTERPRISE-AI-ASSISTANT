@@ -26,6 +26,9 @@ cds.on('bootstrap', (app) => {
 
   app.use('/chat-ui', express.static(path.join(__dirname, 'public/chat-ui')));
   app.use('/chat-ui', express.static(path.join(__dirname, '../public/chat-ui')));
+
+  // Gracefully respond to FLP telemetry / metrics requests
+  app.all('/sap/bc/ui2/flp*', (req, res) => res.status(204).end());
 });
 
 cds.on('served', () => {
