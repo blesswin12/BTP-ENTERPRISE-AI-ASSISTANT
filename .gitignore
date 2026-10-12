@@ -12,6 +12,7 @@ package-lock.json.bak
 # CAP / MTA Build artifacts
 gen/
 dist/
+mcp/srv/
 mta_archives/
 resources/
 archive.mtar

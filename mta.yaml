@@ -48,6 +48,9 @@ modules:
     instances: 1
     memory: 512M
     disk-quota: 1024M
+    health-check-type: http
+    health-check-http-endpoint: /health
+    health-check-timeout: 180
   build-parameters:
     builder: npm-ci
 - name: enterprise-ai-assistant-db-deployer
@@ -254,4 +257,6 @@ build-parameters:
     - mkdir -p gen/db
     - mkdir -p gen/srv/app
     - cp -r app/chat gen/srv/app/chat
+    - mkdir -p mcp/srv
+    - cp gen/srv/srv/csn.json mcp/srv/csn.json
 

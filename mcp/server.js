@@ -1,8 +1,10 @@
 'use strict'
 
 const path = require('node:path')
-process.chdir(path.resolve(__dirname, '..'))
-try { require('dotenv').config() } catch (e) {}
+const fs = require('node:fs')
+try {
+  require('dotenv').config({ path: path.resolve(__dirname, '../.env') })
+} catch (e) {}
 
 const cds = require('@sap/cds')
 const express = require('express')
@@ -33,7 +35,7 @@ async function authenticate(req, res, next) {
   }
   const token = authHeader.substring(7) // Remove 'Bearer ' prefix
   try {
-    const securityContext = await xssec.createSecurityContext(token, uaaService)
+    const securityContext = await xssec.createSecurityContext(uaaService, { jwt: token })
     req.authInfo = securityContext
     return next()
   } catch (err) {
@@ -45,7 +47,21 @@ async function authenticate(req, res, next) {
 
 async function buildCdsModel() {
   const db = await cds.connect.to('db')
-  const model = cds.model || await cds.load('*')
+  let model = cds.model
+  if (!model) {
+    const csnPath = path.resolve(__dirname, 'srv/csn.json')
+    if (fs.existsSync(csnPath)) {
+      model = await cds.load(csnPath)
+    } else {
+      const dbPath = path.resolve(__dirname, '../db')
+      const srvPath = path.resolve(__dirname, '../srv')
+      if (fs.existsSync(dbPath) && fs.existsSync(srvPath)) {
+        model = await cds.load([dbPath, srvPath])
+      } else {
+        model = await cds.load('*')
+      }
+    }
+  }
   if (db.kind === 'sqlite') {
     await cds.deploy(model).to(db)
   }
