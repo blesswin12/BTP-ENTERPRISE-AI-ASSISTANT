@@ -74,7 +74,9 @@
       "i18n": {
         "type": "sap.ui.model.resource.ResourceModel",
         "settings": {
-          "bundleName": "enterprise.ai.purchaseorders.i18n.i18n"
+          "bundleName": "enterprise.ai.purchaseorders.i18n.i18n",
+          "supportedLocales": [""],
+          "fallbackLocale": ""
         }
       },
       "": {

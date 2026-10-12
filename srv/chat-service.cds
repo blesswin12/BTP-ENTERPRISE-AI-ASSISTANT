@@ -293,8 +293,7 @@ annotate ChatService.PurchaseOrderItems with @(
                 netPrice,
                 unit,
                 description,
-                material,
-                'purchaseOrder/totalAmount'
+                material
             ],
         TargetEntities   : [ purchaseOrder ]
       },

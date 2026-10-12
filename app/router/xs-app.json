@@ -10,6 +10,13 @@
       "authenticationType": "xsuaa"
     },
     {
+      "source": "^/sap/bc/ui2/flp(.*)$",
+      "target": "$1",
+      "localDir": "resources",
+      "csrfProtection": false,
+      "authenticationType": "none"
+    },
+    {
       "source": "^/chat/(.*)$",
       "target": "/chat/$1",
       "destination": "srv-api",
