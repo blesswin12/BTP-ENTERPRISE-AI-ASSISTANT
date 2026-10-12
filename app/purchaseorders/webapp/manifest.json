@@ -131,6 +131,7 @@
             "settings": {
               "contextPath": "/PurchaseOrders",
               "variantManagement": "Page",
+              "initialLoad": "Enabled",
               
               
               "navigation": {
@@ -143,7 +144,8 @@
               "controlConfiguration": {
                 "@com.sap.vocabularies.UI.v1.LineItem": {
                   "tableSettings": {
-                    "type": "ResponsiveTable"
+                    "type": "ResponsiveTable",
+                    "popinLayout": "GridSmall"
                   },
                   "actions": {
                     "openChat": {

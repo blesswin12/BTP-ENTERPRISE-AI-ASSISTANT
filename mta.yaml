@@ -249,7 +249,9 @@ build-parameters:
   before-all:
   - builder: custom
     commands:
-    - npx cds build --production
+    - npm ci --include=dev
+    - npx --package=@sap/cds-dk cds build --production
     - mkdir -p gen/db
     - mkdir -p gen/srv/app
     - cp -r app/chat gen/srv/app/chat
+

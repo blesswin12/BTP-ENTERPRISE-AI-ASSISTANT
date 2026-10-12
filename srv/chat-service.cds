@@ -158,6 +158,18 @@ annotate ChatService.BusinessPartners with @(
     }
 );
 
+annotate ChatService.PurchaseOrders with {
+    purchaseOrder @Common.Label: 'PO Number';
+    supplier   @Common.Label: 'Supplier';
+    buyer   @Common.Label: 'Buyer';
+    status        @Common.Label: 'Order Status';
+    orderDate     @Common.Label: 'Order Date';
+    deliveryDate  @Common.Label: 'Delivery Date';
+    totalAmount   @Common.Label: 'Total Amount';
+    currency      @Common.Label: 'Currency';
+};
+
+
 annotate ChatService.PurchaseOrders with @(
     UI.HeaderInfo:{
         TypeName       : 'Purchase Order',
@@ -166,18 +178,62 @@ annotate ChatService.PurchaseOrders with @(
         Description    : { $Type : 'UI.DataField', Value : supplier.name } 
     },
     UI.LineItem : [
-        { $Type : 'UI.DataField', Value : purchaseOrder, Label : 'Purchase Order' },
-        { $Type : 'UI.DataField', Value : supplier_ID,   Label : 'Supplier'       },
-        { $Type : 'UI.DataField', Value : buyer_ID,      Label : 'Buyer'          },
-        { $Type : 'UI.DataField', Value : orderDate,     Label : 'Order Date'     },
-        { $Type : 'UI.DataField', Value : deliveryDate,  Label : 'Delivery Date'  },
         {
-            $Type       : 'UI.DataFieldForAnnotation',
-            Target      : '@UI.DataPoint#StatusCriticality',
-            Label       : 'Status'
+            $Type                  : 'UI.DataField',
+            Value                  : purchaseOrder,
+            Label                  : 'Purchase Order',
+            ![@UI.Importance]      : #High,
+            ![@HTML5.CssDefaults]  : { width : '9.5rem' }
         },
-        { $Type : 'UI.DataField', Value : totalAmount,   Label : 'Total Amount'   },
-        { $Type : 'UI.DataField', Value : currency,      Label : 'Currency'       }
+        {
+            $Type                  : 'UI.DataField',
+            Value                  : supplier_ID,
+            Label                  : 'Supplier',
+            ![@UI.Importance]      : #High,
+            ![@HTML5.CssDefaults]  : { width : '13rem' }
+        },
+        {
+            $Type                  : 'UI.DataField',
+            Value                  : buyer_ID,
+            Label                  : 'Buyer',
+            ![@UI.Importance]      : #High,
+            ![@HTML5.CssDefaults]  : { width : '12rem' }
+        },
+        {
+            $Type                  : 'UI.DataField',
+            Value                  : orderDate,
+            Label                  : 'Order Date',
+            ![@UI.Importance]      : #High,
+            ![@HTML5.CssDefaults]  : { width : '8.5rem' }
+        },
+        {
+            $Type                  : 'UI.DataField',
+            Value                  : deliveryDate,
+            Label                  : 'Delivery Date',
+            ![@UI.Importance]      : #High,
+            ![@HTML5.CssDefaults]  : { width : '8.5rem' }
+        },
+        {
+            $Type                  : 'UI.DataFieldForAnnotation',
+            Target                 : '@UI.DataPoint#StatusCriticality',
+            Label                  : 'Status',
+            ![@UI.Importance]      : #High,
+            ![@HTML5.CssDefaults]  : { width : '8.5rem' }
+        },
+        {
+            $Type                  : 'UI.DataField',
+            Value                  : totalAmount,
+            Label                  : 'Total Amount',
+            ![@UI.Importance]      : #High,
+            ![@HTML5.CssDefaults]  : { width : '9rem' }
+        },
+        {
+            $Type                  : 'UI.DataField',
+            Value                  : currency,
+            Label                  : 'Currency',
+            ![@UI.Importance]      : #High,
+            ![@HTML5.CssDefaults]  : { width : '5.5rem' }
+        }
     ],
     UI.DataPoint #StatusCriticality : {
         Value       : status,
