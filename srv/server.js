@@ -27,8 +27,13 @@ cds.on('bootstrap', (app) => {
   app.use('/chat-ui', express.static(path.join(__dirname, 'public/chat-ui')));
   app.use('/chat-ui', express.static(path.join(__dirname, '../public/chat-ui')));
 
-  // Gracefully respond to FLP telemetry / metrics requests
-  app.all('/sap/bc/ui2/flp*', (req, res) => res.status(204).end());
+  // Gracefully respond to FLP telemetry / metrics requests without path-to-regexp wildcard issues
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/sap/bc/ui2/flp')) {
+      return res.status(204).end();
+    }
+    next();
+  });
 });
 
 cds.on('served', () => {
