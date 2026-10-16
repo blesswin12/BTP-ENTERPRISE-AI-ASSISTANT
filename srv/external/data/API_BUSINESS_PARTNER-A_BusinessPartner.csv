@@ -1,0 +1,4 @@
+BusinessPartner;Customer;Supplier;BusinessPartnerCategory;BusinessPartnerFullName;BusinessPartnerIsBlocked
+1000040;1000040;1000040;1;Domestic US Supplier 1;false
+1000041;1000041;1000041;1;European Logistics GmbH;false
+1000042;1000042;1000042;1;Asia Tech Corp;false

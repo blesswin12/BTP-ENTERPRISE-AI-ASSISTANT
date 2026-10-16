@@ -1,6 +1,7 @@
 namespace enterprise.ai;
 
 using { cuid, managed, Currency, sap.common.CodeList } from '@sap/cds/common';
+using { API_BUSINESS_PARTNER as bupa } from '../srv/external/API_BUSINESS_PARTNER';
 using from './ai-models';
 
 
@@ -31,7 +32,7 @@ entity PurchaseOrders {
 
       @assert.format: '^.{5,20}$'
       purchaseOrder : String(20)  not null;
-      supplier      : Association to BusinessPartners not null;
+      supplier      : Association to bupa.A_BusinessPartner not null;
       buyer         : Association to BusinessPartners;
       orderDate     : Date;
       deliveryDate  : Date;

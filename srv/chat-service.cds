@@ -1,4 +1,5 @@
 using {enterprise.ai as db} from '../db/schema';
+using { API_BUSINESS_PARTNER as bupa } from '../srv/external/API_BUSINESS_PARTNER';
 using from '@cap-js/data-privacy';
 
 service ChatService @(path: '/chat') {
@@ -11,7 +12,14 @@ service ChatService @(path: '/chat') {
     entity PurchaseOrderItems as projection on db.PurchaseOrderItems;
 
     @readonly entity Products as projection on db.Products;
-    @readonly entity BusinessPartners as projection on db.BusinessPartners;
+    @readonly entity BusinessPartners as projection on bupa.A_BusinessPartner{
+        key BusinessPartner,
+                Customer,
+                Supplier,
+                BusinessPartnerCategory,
+                BusinessPartnerFullName,
+                BusinessPartnerIsBlocked
+    };
     @readonly entity OrderStatuses as projection on db.OrderStatuses;
 
     action askAnalytics   (question : String, conversationID : UUID) returns String;
@@ -27,7 +35,7 @@ annotate db.PurchaseOrders with @changelog: [
     purchaseOrder,
     status
 ]{
-    supplier @changelog: [name];
+    supplier @changelog: [BusinessPartnerFullName];
     buyer    @changelog: [name];
     orderDate @changelog;   
     deliveryDate @changelog;
@@ -60,9 +68,7 @@ annotate ChatService.BusinessPartners with @PersonalData : {
     EntitySemantics : 'DataSubject',
     DataSubjectRole : 'Buyer'
 } {
-    ID    @PersonalData.FieldSemantics : 'DataSubjectID';
-    email @PersonalData.IsPotentiallyPersonal;
-    phone @PersonalData.IsPotentiallyPersonal;
+    BusinessPartner @PersonalData.FieldSemantics : 'DataSubjectID';
 };
 
 annotate ChatService.PurchaseOrderItems with @PersonalData : { 
@@ -109,17 +115,15 @@ annotate ChatService.PurchaseOrders with {
     purchaseOrder @mandatory;
     supplier      @(
         mandatory,
-        Common.Text            : supplier.name,
+        Common.Text            : supplier.BusinessPartnerFullName,
         Common.TextArrangement : #TextFirst,
         Common.ValueList       : {
             Label          : 'Suppliers',
             CollectionPath : 'BusinessPartners',
             Parameters     : [
-                { $Type : 'Common.ValueListParameterInOut', LocalDataProperty : supplier_ID, ValueListProperty : 'ID' },
-                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'partnerNumber' },
-                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'name' },
-                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'email' },
-                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'phone' }
+                { $Type : 'Common.ValueListParameterInOut', LocalDataProperty : supplier_BusinessPartner, ValueListProperty : 'BusinessPartner' },
+                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'BusinessPartnerFullName' },
+                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'Supplier' }
             ]
         }
     );
@@ -147,14 +151,7 @@ annotate ChatService.PurchaseOrders with {
 
 annotate ChatService.BusinessPartners with @(
     Communication.Contact : {
-        fn    : name,
-        role  : role,
-        email : [
-            { type : #work, address : email }
-        ],
-        tel   : [
-            { type : #work, uri : phone }
-        ]
+        fn : BusinessPartnerFullName
     }
 );
 
@@ -175,7 +172,7 @@ annotate ChatService.PurchaseOrders with @(
         TypeName       : 'Purchase Order',
         TypeNamePlural : 'Purchase Orders',
         Title          : { $Type : 'UI.DataField', Value : purchaseOrder },
-        Description    : { $Type : 'UI.DataField', Value : supplier.name } 
+        Description    : { $Type : 'UI.DataField', Value : supplier.BusinessPartnerFullName } 
     },
     UI.LineItem : [
         {
@@ -187,7 +184,7 @@ annotate ChatService.PurchaseOrders with @(
         },
         {
             $Type                  : 'UI.DataField',
-            Value                  : supplier_ID,
+            Value                  : supplier_BusinessPartner,
             Label                  : 'Supplier',
             ![@UI.Importance]      : #High,
             ![@HTML5.CssDefaults]  : { width : '13rem' }
@@ -245,7 +242,7 @@ annotate ChatService.PurchaseOrders with @(
         Label : 'Header Information',
         Data  : [
             { $Type : 'UI.DataField', Value : purchaseOrder, Label : 'Purchase Order' },
-            { $Type : 'UI.DataField', Value : supplier_ID,   Label : 'Supplier'       },
+            { $Type : 'UI.DataField', Value : supplier_BusinessPartner,   Label : 'Supplier'       },
             { $Type : 'UI.DataField', Value : buyer_ID,      Label : 'Buyer'          },
             { $Type : 'UI.DataField', Value : orderDate,     Label : 'Order Date'     },
             { $Type : 'UI.DataField', Value : deliveryDate,  Label : 'Delivery Date'  },
@@ -274,7 +271,7 @@ annotate ChatService.PurchaseOrders with @(
     ],
     UI.SelectionFields : [
         purchaseOrder,
-        supplier_ID,
+        supplier_BusinessPartner,
         status,
         orderDate
     ]

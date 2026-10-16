@@ -233,6 +233,15 @@ module.exports = cds.service.impl(async function () {
 
   const messaging = await cds.connect.to('messaging');
 
+
+  // Service Delegation — External Business Partner API
+  const bupa = await cds.connect.to('API_BUSINESS_PARTNER');
+
+  this.on('READ', 'BusinessPartners', async (req) => {
+    return bupa.run(req.query);
+  });
+
+
   function calculateCriticality(po) {
     if (!po) return;
     if (po.status === 'Approved' || po.status === 'Completed' || po.status === 'Ordered') {
