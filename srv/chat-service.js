@@ -358,62 +358,119 @@ module.exports = cds.service.impl(async function () {
     }
   });
 
-this.before(['CREATE', 'UPDATE', 'NEW'], 'PurchaseOrderItems.drafts', async (req) => {
-        const { product_ID } = req.data;
-        if(product_ID){
-          const product = await SELECT.one.from(Products).where({ ID: product_ID });
+  // Helper to enrich line item with Product data and calculate netAmount
+  async function enrichAndCalculateItem(item, isDraft = true) {
+    if (!item) return null;
 
-          if(product) {
-            req.data.netPrice = req.data.netPrice || product.price;
-            req.data.unit = req.data.unit || product.baseUnit;
-            req.data.description = req.data.description || product.name;
-            req.data.material = req.data.material || product.productID || product.name;
-          }
+    // 1. Resolve product by product_ID or material
+    const prodKey = item.product_ID || item.material;
+    if (prodKey) {
+      const product = await SELECT.one.from(Products).where({ ID: prodKey })
+        .or({ productID: prodKey })
+        .or({ name: prodKey });
+
+      if (product) {
+        item.product_ID = item.product_ID || product.ID;
+        item.netPrice = item.netPrice != null ? item.netPrice : product.price;
+        item.unit = item.unit || product.baseUnit;
+        item.description = item.description || product.name;
+        item.material = item.material || product.productID || product.name;
+      }
+    }
+
+    // 2. Fetch existing record if quantity or netPrice is missing
+    let existing = null;
+    const itemID = item.ID;
+    if (itemID && (item.quantity == null || item.netPrice == null || !item.purchaseOrder_ID)) {
+      const table = isDraft ? PurchaseOrderItems.drafts : PurchaseOrderItems;
+      existing = await SELECT.one.from(table).where({ ID: itemID });
+    }
+
+    // 3. Calculate netAmount when both quantity and netPrice are available
+    const qty = item.quantity != null ? item.quantity : existing?.quantity;
+    const price = item.netPrice != null ? item.netPrice : existing?.netPrice;
+    if (qty != null && price != null) {
+      item.netAmount = Number(qty) * Number(price);
+    }
+
+    if (!item.purchaseOrder_ID && existing?.purchaseOrder_ID) {
+      item.purchaseOrder_ID = existing.purchaseOrder_ID;
+    }
+
+    return existing;
+  }
+
+  // Handle nested items when creating or updating PurchaseOrders (Deep insert / draft new)
+  this.before(['CREATE', 'UPDATE', 'NEW', 'PATCH'], ['PurchaseOrders', 'PurchaseOrders.drafts'], async (req) => {
+    if (Array.isArray(req.data?.items) && req.data.items.length > 0) {
+      const isDraft = req.target.name.endsWith('.drafts');
+      let total = 0;
+      for (const item of req.data.items) {
+        if (req.data.ID && !item.purchaseOrder_ID) {
+          item.purchaseOrder_ID = req.data.ID;
         }
-        const itemID = req.data.ID || req.params?.[req.params.length - 1]?.ID || req.params?.find(p => p.ID)?.ID;
-        let existing = null;
-        if (itemID && (req.data.quantity === undefined || req.data.netPrice === undefined)) {
-          existing = await SELECT.one.from(PurchaseOrderItems.drafts).where({
-            ID: itemID
-          });
+        await enrichAndCalculateItem(item, isDraft);
+        total += Number(item.netAmount) || 0;
+      }
+      if (req.data.totalAmount == null || req.data.totalAmount === 0) {
+        req.data.totalAmount = total;
+      }
+    }
+  });
+
+  // Handle individual PurchaseOrderItems (both draft and active)
+  this.before(['CREATE', 'UPDATE', 'NEW', 'PATCH'], ['PurchaseOrderItems', 'PurchaseOrderItems.drafts'], async (req) => {
+    const isDraft = req.target.name.endsWith('.drafts');
+    const items = Array.isArray(req.data) ? req.data : [req.data];
+    let lastExisting = null;
+
+    for (const item of items) {
+      if (!item.ID) {
+        const paramID = req.params?.[req.params.length - 1]?.ID || req.params?.find(p => p.ID)?.ID;
+        if (paramID && (req.event === 'UPDATE' || req.event === 'PATCH')) {
+          item.ID = paramID;
         }
-    
-        // Calculating netAmount
-        const qty = req.data.quantity !== undefined ? req.data.quantity : existing?.quantity;
-        const price = req.data.netPrice !== undefined ? req.data.netPrice : existing?.netPrice;
-        if (qty !== undefined && price !== undefined) {
-          req.data.netAmount = Number(qty) * Number(price);
-        }
-        req._poID = req.data.purchaseOrder_ID || existing?.purchaseOrder_ID;
-      });
-    
-      // Preserve parent PO ID before a draft item is deleted
-      this.before('DELETE', 'PurchaseOrderItems.drafts', async (req) => {
-        const itemID = req.data.ID || req.params?.find(p => p.ID)?.ID;
-          const item = await SELECT.one.from(PurchaseOrderItems.drafts).where({ ID: itemID });
-          if (item) req._poID = item.purchaseOrder_ID;
-      });
-    
-      this.after(['CREATE', 'UPDATE', 'DELETE'], 'PurchaseOrderItems.drafts', async (_, req) => {
-        let poID = req.data.purchaseOrder_ID || req._poID;
-        if (!poID) {
-          const itemID = req.data.ID || req.params?.find(p => p.ID)?.ID;
-          if (itemID) {
-            const item = await SELECT.one.from(PurchaseOrderItems.drafts).where({ ID: itemID });
-            poID = item?.purchaseOrder_ID;
-          }
-        }
-        if (!poID) return;
-    
-        // Use entity object PurchaseOrderItems.drafts instead of a hardcoded string
-        const items = await SELECT.from(PurchaseOrderItems.drafts).where({
-          purchaseOrder_ID: poID
-        });
-        const total = items.reduce((sum, item) => sum + (Number(item.netAmount) || 0), 0);
-        await UPDATE(PurchaseOrders.drafts)
-          .set({ totalAmount: total })
-          .where({ ID: poID });
-      });
+      }
+      const existing = await enrichAndCalculateItem(item, isDraft);
+      if (existing) lastExisting = existing;
+    }
+
+    req._poID = req.data?.purchaseOrder_ID || lastExisting?.purchaseOrder_ID;
+  });
+
+  // Preserve parent PO ID before an item is deleted
+  this.before('DELETE', ['PurchaseOrderItems', 'PurchaseOrderItems.drafts'], async (req) => {
+    const isDraft = req.target.name.endsWith('.drafts');
+    const itemID = req.data?.ID || req.params?.[req.params.length - 1]?.ID || req.params?.find(p => p.ID)?.ID;
+    if (itemID) {
+      const table = isDraft ? PurchaseOrderItems.drafts : PurchaseOrderItems;
+      const item = await SELECT.one.from(table).where({ ID: itemID });
+      if (item) req._poID = item.purchaseOrder_ID;
+    }
+  });
+
+  // Recalculate parent PO totalAmount after items are created, updated, or deleted
+  this.after(['CREATE', 'UPDATE', 'DELETE'], ['PurchaseOrderItems', 'PurchaseOrderItems.drafts'], async (_, req) => {
+    const isDraft = req.target.name.endsWith('.drafts');
+    const itemsTable = isDraft ? PurchaseOrderItems.drafts : PurchaseOrderItems;
+    const poTable = isDraft ? PurchaseOrders.drafts : PurchaseOrders;
+
+    let poID = req.data?.purchaseOrder_ID || req._poID;
+    if (!poID) {
+      const itemID = req.data?.ID || req.params?.[req.params.length - 1]?.ID || req.params?.find(p => p.ID)?.ID;
+      if (itemID) {
+        const item = await SELECT.one.from(itemsTable).where({ ID: itemID });
+        poID = item?.purchaseOrder_ID;
+      }
+    }
+    if (!poID) return;
+
+    const items = await SELECT.from(itemsTable).where({ purchaseOrder_ID: poID });
+    const total = items.reduce((sum, item) => sum + (Number(item.netAmount) || 0), 0);
+    await UPDATE(poTable)
+      .set({ totalAmount: total })
+      .where({ ID: poID });
+  });
 
 
 

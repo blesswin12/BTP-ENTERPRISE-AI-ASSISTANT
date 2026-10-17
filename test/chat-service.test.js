@@ -54,7 +54,7 @@ describe('ChatService — Purchase Orders', () => {
   it('POST /PurchaseOrders creates with auto defaults', async () => {
     const { status, data } = await POST('/chat/PurchaseOrders', {
       purchaseOrder: 'PO-TEST-001',
-      supplier_ID  : '20000000-0000-0000-0000-000000000001',
+      supplier_BusinessPartner: '1000040',
       buyer_ID     : '20000000-0000-0000-0000-000000000004',
       orderDate    : '2026-07-01',
       deliveryDate : '2026-08-01',
@@ -70,7 +70,7 @@ describe('ChatService — Purchase Orders', () => {
     try {
       await POST('/chat/PurchaseOrders', {
         purchaseOrder: 'ab',
-        supplier_ID  : '20000000-0000-0000-0000-000000000001',
+        supplier_BusinessPartner: '1000040',
         buyer_ID     : '20000000-0000-0000-0000-000000000004',
         orderDate    : '2026-07-01',
         deliveryDate : '2026-08-01'
@@ -85,7 +85,7 @@ describe('ChatService — Purchase Orders', () => {
     try {
       await POST('/chat/PurchaseOrders', {
         purchaseOrder: 'PO-DATE-001',
-        supplier_ID  : '20000000-0000-0000-0000-000000000001',
+        supplier_BusinessPartner: '1000040',
         buyer_ID     : '20000000-0000-0000-0000-000000000004',
         orderDate    : '2026-08-01',
         deliveryDate : '2026-07-01'
@@ -94,6 +94,62 @@ describe('ChatService — Purchase Orders', () => {
     } catch (err) {
       expect(err.status || err.response?.status).to.equal(400)
     }
+  })
+
+  it('POST /PurchaseOrders with items calculates netAmount and totalAmount on a new order', async () => {
+    const { status, data } = await POST('/chat/PurchaseOrders', {
+      purchaseOrder: 'PO-CALC-001',
+      supplier_BusinessPartner: '1000040',
+      items: [
+        {
+          itemNumber: 10,
+          product_ID: '10000000-0000-0000-0000-000000000001',
+          quantity: 5
+        },
+        {
+          itemNumber: 20,
+          material: 'MAT-2200',
+          quantity: 2
+        }
+      ]
+    })
+    expect(status).to.equal(201)
+    const db = await cds.connect.to('db')
+    const srv = await cds.connect.to('ChatService')
+    const { PurchaseOrderItems, PurchaseOrders } = srv.entities
+    const poDraft = await db.run(SELECT.one.from(PurchaseOrders.drafts).where({ ID: data.ID }))
+    const items = await db.run(SELECT.from(PurchaseOrderItems.drafts).where({ purchaseOrder_ID: data.ID }))
+    expect(items).to.have.lengthOf(2)
+    const item1 = items.find(i => i.itemNumber === 10)
+    const item2 = items.find(i => i.itemNumber === 20)
+    expect(Number(item1.netPrice)).to.equal(410)
+    expect(Number(item1.netAmount)).to.equal(2050) // 5 * 410
+    expect(Number(item2.netPrice)).to.equal(800)
+    expect(Number(item2.netAmount)).to.equal(1600) // 2 * 800
+    expect(Number(poDraft.totalAmount)).to.equal(3650) // 2050 + 1600
+  })
+
+  it('calculates netAmount when adding and updating draft item on a new order', async () => {
+    // 1. Create draft PO
+    const { data: po } = await POST('/chat/PurchaseOrders', {
+      purchaseOrder: 'PO-DRAFT-CALC',
+      supplier_BusinessPartner: '1000040'
+    })
+    // 2. Add draft item
+    const { data: item } = await POST(`/chat/PurchaseOrders(ID=${po.ID},IsActiveEntity=false)/items`, {
+      itemNumber: 10
+    })
+    // 3. Patch product_ID
+    const patch1 = await PATCH(`/chat/PurchaseOrderItems(ID=${item.ID},IsActiveEntity=false)`, {
+      product_ID: '10000000-0000-0000-0000-000000000001'
+    })
+    expect(Number(patch1.data.netPrice)).to.equal(410)
+    // 4. Patch quantity
+    const patch2 = await PATCH(`/chat/PurchaseOrderItems(ID=${item.ID},IsActiveEntity=false)`, {
+      quantity: 3
+    })
+    expect(Number(patch2.data.quantity)).to.equal(3)
+    expect(Number(patch2.data.netAmount)).to.equal(1230) // 3 * 410
   })
 
   it('POST /PurchaseOrderItems enforces quantity >= 1 range assertion', async () => {
@@ -114,7 +170,7 @@ describe('ChatService — Purchase Orders', () => {
   it('PATCH /PurchaseOrders updates status', async () => {
     const { data: created } = await POST('/chat/PurchaseOrders', {
       purchaseOrder: 'PO-PATCH-001',
-      supplier_ID  : '20000000-0000-0000-0000-000000000001',
+      supplier_BusinessPartner: '1000040',
       buyer_ID     : '20000000-0000-0000-0000-000000000004',
       orderDate    : '2026-07-01',
       deliveryDate : '2026-08-01'
@@ -131,7 +187,7 @@ describe('ChatService — Purchase Orders', () => {
   it('PATCH /PurchaseOrders updates status to Ordered and calculates criticality', async () => {
     const { data: created } = await POST('/chat/PurchaseOrders', {
       purchaseOrder: 'PO-PATCH-002',
-      supplier_ID  : '20000000-0000-0000-0000-000000000002',
+      supplier_BusinessPartner: '1000041',
       buyer_ID     : '20000000-0000-0000-0000-000000000005',
       orderDate    : '2026-06-03',
       deliveryDate : '2026-06-27'

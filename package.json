@@ -49,15 +49,18 @@
   "cds": {
     "requires": {
       "API_BUSINESS_PARTNER": {
-      "kind": "odata-v2",
-      "model": "srv/external/API_BUSINESS_PARTNER",
-      "[production]": {
+        "kind": "odata-v2",
+        "model": "srv/external/API_BUSINESS_PARTNER",
         "credentials": {
-          "destination": "apihub_sandbox",
-          "path": "/s4hanacloud/sap/opu/odata/sap/API_BUSINESS_PARTNER"
+          "url": "http://localhost:4004"
+        },
+        "[production]": {
+          "credentials": {
+            "destination": "apihub_sandbox",
+            "path": "/s4hanacloud/sap/opu/odata/sap/API_BUSINESS_PARTNER"
+          }
         }
-      }
-    },
+      },
       "audit-log": {
         "kind": "audit-log-to-console"
       },

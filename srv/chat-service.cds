@@ -20,6 +20,7 @@ service ChatService @(path: '/chat') {
                 BusinessPartnerFullName,
                 BusinessPartnerIsBlocked
     };
+    @readonly entity Buyers as projection on db.BusinessPartners where role = 'Buyer';
     @readonly entity OrderStatuses as projection on db.OrderStatuses;
 
     action askAnalytics   (question : String, conversationID : UUID) returns String;
@@ -69,6 +70,16 @@ annotate ChatService.BusinessPartners with @PersonalData : {
     DataSubjectRole : 'Buyer'
 } {
     BusinessPartner @PersonalData.FieldSemantics : 'DataSubjectID';
+};
+
+annotate ChatService.Buyers with @PersonalData : {
+    EntitySemantics : 'DataSubject',
+    DataSubjectRole : 'Buyer'
+} {
+    ID    @PersonalData.FieldSemantics : 'DataSubjectID';
+    name  @PersonalData.IsPotentiallyPersonal;
+    email @PersonalData.IsPotentiallyPersonal;
+    phone @PersonalData.IsPotentiallyPersonal;
 };
 
 annotate ChatService.PurchaseOrderItems with @PersonalData : { 
@@ -133,7 +144,7 @@ annotate ChatService.PurchaseOrders with {
         Common.TextArrangement : #TextFirst,
         Common.ValueList       : {
             Label          : 'Buyers',
-            CollectionPath : 'BusinessPartners',
+            CollectionPath : 'Buyers',
             Parameters     : [
                 { $Type : 'Common.ValueListParameterInOut', LocalDataProperty : buyer_ID, ValueListProperty : 'ID' },
                 { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'partnerNumber' },
@@ -155,10 +166,23 @@ annotate ChatService.BusinessPartners with @(
     }
 );
 
+annotate ChatService.Buyers with @(
+    Communication.Contact : {
+        fn    : name,
+        role  : role,
+        email : [
+            { type : #work, address : email }
+        ],
+        tel   : [
+            { type : #work, uri : phone }
+        ]
+    }
+);
+
 annotate ChatService.PurchaseOrders with {
     purchaseOrder @Common.Label: 'PO Number';
-    supplier   @Common.Label: 'Supplier';
-    buyer   @Common.Label: 'Buyer';
+    supplier      @Common.Label: 'Supplier';
+    buyer         @Common.Label: 'Buyer';
     status        @Common.Label: 'Order Status';
     orderDate     @Common.Label: 'Order Date';
     deliveryDate  @Common.Label: 'Delivery Date';
@@ -272,6 +296,7 @@ annotate ChatService.PurchaseOrders with @(
     UI.SelectionFields : [
         purchaseOrder,
         supplier_BusinessPartner,
+        buyer_ID,
         status,
         orderDate
     ]
@@ -284,7 +309,7 @@ annotate ChatService.PurchaseOrderItems with @(
         Description    : { $Type : 'UI.DataField', Value : material }
     },
     Common.SideEffects #ItemChanged : {
-        SourceProperties : [ quantity, netPrice, product_ID ],
+        SourceProperties : [ quantity, netPrice, product_ID, material ],
         TargetProperties : [
                 netAmount,
                 netPrice,
@@ -309,5 +334,17 @@ annotate ChatService.PurchaseOrderItems with @(
 
 annotate ChatService.PurchaseOrderItems with {
     netAmount @readonly;
+    material @(
+        Common.ValueList : {
+            Label          : 'Products',
+            CollectionPath : 'Products',
+            Parameters     : [
+                { $Type : 'Common.ValueListParameterInOut', LocalDataProperty : material, ValueListProperty : 'productID' },
+                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'name' },
+                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'price' },
+                { $Type : 'Common.ValueListParameterDisplayOnly', ValueListProperty : 'baseUnit' }
+            ]
+        }
+    );
 };
 
