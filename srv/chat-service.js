@@ -7,6 +7,7 @@ const EMBEDDING_API_URL = process.env.EMBEDDING_API_URL || ''
 const { getRequestContext, logWithContext } = require('./utils/context-helper');
 const { SELECT } = require('@sap/cds/lib/ql/cds-ql')
 const { getCredential } = require('./credstore-util');
+const { generateEmbedding, cosineSimilarity, parseVector } = require('./utils/embedding-helper');
 
 let cachedGroqApiKey = null;
 
@@ -96,44 +97,6 @@ async function getRecentChangeLogs(tx, limit=50){
 }
 
 
-async function generateEmbedding(text) {
-  if (!EMBEDDING_API_URL) {
-    return Array.from({ length: 384 }, () => Math.random() - 0.5)
-  }
-  try {
-    const isOpenAI = EMBEDDING_API_URL.toLowerCase().includes('openai.com')
-    const headers = {
-      'Content-Type': 'application/json'
-    }
-
-    if (isOpenAI && process.env.OPENAI_API_KEY) {
-      headers['Authorization'] = `Bearer ${process.env.OPENAI_API_KEY}`
-    }
-
-    const body = isOpenAI 
-      ? JSON.stringify({ input: text, model: process.env.EMBEDDING_MODEL || 'text-embedding-3-small' })
-      : JSON.stringify({ inputs: text });
-
-    const response = await fetch(EMBEDDING_API_URL, {
-      method: 'POST',
-      headers,
-      body
-    });
-    if (!response.ok) {
-      throw new Error(`Embedding API request failed with ${response.status}: ${await response.text()}`)
-    }
-
-    const data = await response.json()
-    if (isOpenAI) {
-      return data.data?.[0]?.embedding || []
-    } else {
-      return data[0] || []
-    }
-  } catch (error) {
-    console.error('Error generating embedding:', error.message || error)
-    return Array.from({ length: 384 }, () => Math.random() - 0.5)
-  }
-}
 
 
 function getQuestion(req) {
@@ -618,32 +581,38 @@ module.exports = cds.service.impl(async function () {
       )
     }
 
-    // Stop words to filter out from search terms
-    const STOP_WORDS = new Set([
-      'what', 'when', 'where', 'how', 'why', 'who', 'which', 'whom',
-      'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has',
-      'had', 'do', 'does', 'did', 'the', 'a', 'an', 'and', 'but', 'if',
-      'or', 'because', 'as', 'until', 'while', 'of', 'at', 'by', 'for',
-      'with', 'about', 'to', 'from', 'in', 'on', 'at', 'by', 'required'
-    ])
+    // 1. Generate query embedding vector using in-process transformer model
+    const queryVector = await generateEmbedding(question);
 
-    const keywords = question.toLowerCase()
-      .split(/[^\w]+/)
-      .filter(w => w.length > 2 && !STOP_WORDS.has(w))
+    let chunks = [];
+    const isHana = cds.db.kind === 'hana';
 
-    const query = SELECT.from(Embeddings).limit(5)
-    if (keywords.length > 0) {
-      const clause = keywords.map(kw => `lower(chunkText) like '%${kw.replace(/'/g, "''")}%'`).join(' or ')
-      query.where(clause)
+    if (isHana) {
+      // 2a. SAP HANA Cloud Native Vector Engine similarity search
+      const vectorStr = `[${queryVector.join(',')}]`;
+      chunks = await tx.run(`
+        SELECT TOP 5 e.ID, e."DOCUMENTID", e."CHUNKTEXT", e."CHUNKINDEX", d."FILENAME",
+               COSINE_SIMILARITY(e."EMBEDDING", TO_REAL_VECTOR(?)) AS score
+        FROM "ENTERPRISE_AI_EMBEDDINGS" AS e
+        LEFT JOIN "ENTERPRISE_AI_DOCUMENTS" AS d ON d.ID = e."DOCUMENTID"
+        ORDER BY score DESC
+      `, [vectorStr]);
     } else {
-      // Fallback to first word if no keywords match
-      const firstWord = question.split(/\s+/).find(Boolean)
-      if (firstWord) {
-        query.where({ chunkText: { like: `%${firstWord}%` } })
-      }
-    }
+      // 2b. Local SQLite fallback: Semantic Cosine Similarity in JavaScript
+      const allEntries = await tx.run(SELECT.from(Embeddings, e => {
+        e.ID, e.documentID, e.chunkText, e.chunkIndex, e.embedding,
+        e.document(d => { d.fileName })
+      }));
 
-    const chunks = await tx.run(query)
+      for (const entry of allEntries) {
+        const vec = parseVector(entry.embedding);
+        entry.score = cosineSimilarity(queryVector, vec);
+        entry.fileName = entry.document?.fileName || 'Document';
+      }
+
+      allEntries.sort((a, b) => b.score - a.score);
+      chunks = allEntries.slice(0, 5).filter(c => c.score > 0.05);
+    }
     if (!chunks.length) {
       const noMatch = JSON.stringify({
         answer: "Sorry, I couldn't find any relevant information in the documents.",
@@ -834,7 +803,7 @@ this.on('uploadDocument', async req => {
               documentID: docID,
               chunkText: chunks[idx],
               chunkIndex: idx,
-              embedding: JSON.stringify(vector)
+              embedding: vector
             });
           }
     
@@ -919,7 +888,7 @@ Keep it under 200 words. Use bullet points.`
         documentID: cds.utils.uuid(),
         chunkText: documentText,
         chunkIndex: 0,
-        embedding: JSON.stringify(vector),
+        embedding: vector,
         fileName: documentName
       }));
       console.log(`[Background Task] Document "${documentName}" ingested successfully.`);

@@ -17,7 +17,7 @@ entity Embeddings {
       document   : Association to Documents on document.ID = documentID;
       chunkText  : LargeString not null;
       chunkIndex : Integer not null;
-      embedding  : LargeString;
+      embedding  : Vector(384);
 }
 
 entity ChatHistory {

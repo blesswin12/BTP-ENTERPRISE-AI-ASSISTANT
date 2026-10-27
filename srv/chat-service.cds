@@ -61,15 +61,7 @@ annotate ChatService.PurchaseOrders with @PersonalData : {
     DataSubjectRole : 'Buyer'
 } {
     buyer    @PersonalData.FieldSemantics  : 'DataSubjectID';
-    supplier @PersonalData.IsPotentiallySensitive;
     totalAmount @PersonalData.IsPotentiallySensitive;
-};
-
-annotate ChatService.BusinessPartners with @PersonalData : {
-    EntitySemantics : 'DataSubject',
-    DataSubjectRole : 'Buyer'
-} {
-    BusinessPartner @PersonalData.FieldSemantics : 'DataSubjectID';
 };
 
 annotate ChatService.Buyers with @PersonalData : {
