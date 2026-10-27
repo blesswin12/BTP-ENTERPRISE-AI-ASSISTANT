@@ -1,17 +1,41 @@
 try { require('dotenv').config() } catch (e) {}
 const cds = require('@sap/cds')
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY
 const GROQ_API_URL = process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions'
 const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b'
 const EMBEDDING_API_URL = process.env.EMBEDDING_API_URL || ''
 const { getRequestContext, logWithContext } = require('./utils/context-helper');
 const { SELECT } = require('@sap/cds/lib/ql/cds-ql')
+const { getCredential } = require('./credstore-util');
+
+let cachedGroqApiKey = null;
+
+async function getGroqApiKey() {
+  if (cachedGroqApiKey) {
+    return cachedGroqApiKey;
+  }
+  // 1. Try to fetch from SAP BTP Credential Store
+  try {
+    const cred = await getCredential('GROQ_API_KEY', 'default');
+    if (cred) {
+      cachedGroqApiKey = cred;
+      console.log('[CredStore] Successfully retrieved GROQ_API_KEY from SAP Credential Store');
+      return cachedGroqApiKey;
+    }
+  } catch (err) {
+    console.warn(`[CredStore] Notice: ${err.message}. Falling back to process.env.GROQ_API_KEY`);
+  }
+
+  // 2. Fallback to process.env
+  cachedGroqApiKey = process.env.GROQ_API_KEY;
+  return cachedGroqApiKey;
+}
 
 
 async function callGroq(systemPrompt, userMessage, history = []) {
-  if (!GROQ_API_KEY) {
-    throw new Error('GROQ_API_KEY is not configured')
+  const apiKey = await getGroqApiKey();
+  if (!apiKey) {
+    throw new Error('GROQ_API_KEY is not configured in Credential Store or environment');
   }
 
   const ctx = getRequestContext();
@@ -36,7 +60,7 @@ async function callGroq(systemPrompt, userMessage, history = []) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${GROQ_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       'X-Correlation-ID': ctx.correlationId
     },
     body: JSON.stringify({
